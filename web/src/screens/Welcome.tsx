@@ -33,7 +33,7 @@ export default function Welcome() {
       </div>
       <h1 className="text-3xl font-bold">Un bureau Linux taillé pour vous</h1>
       <p className="text-slate-700">
-        Desktop Tailor analyse votre système, vous pose quelques questions, puis vous montre chaque
+        LinXtailor analyse votre système, vous pose quelques questions, puis vous montre chaque
         modification avant de l’appliquer. Tout peut être annulé.
       </p>
       <button type="button" className="btn-primary text-lg" onClick={() => void analyse()} disabled={loading}>

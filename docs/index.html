@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Desktop Tailor — installer</title>
+  <title>LinXtailor — installer</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <meta name="description" content="Personnalisez votre bureau Linux en quelques questions. Fedora, Ubuntu, Debian.">
   <style>
     :root { --ink:#0f172a; --muted:#334155; --line:#e2e8f0; --brand:#4338ca; --bg:#f8fafc; --code:#0f172a; }
@@ -33,47 +34,50 @@
 <body>
 <main>
   <span class="badge">Fedora · Ubuntu · Debian — GNOME, KDE Plasma, XFCE</span>
-  <h1>Desktop Tailor</h1>
-  <p class="lead">Un bureau Linux taillé pour vous, en quelques questions. Chaque modification vous est montrée
-    avant d’être appliquée, et tout peut être annulé en un clic.</p>
+  <h1>LinXtailor</h1>
+  <p class="lead">Le compagnon de ceux qui passent de Windows à Linux : vos logiciels, vos habitudes et un bureau
+    à votre goût, réglés sur une seule page. Chaque modification vous est montrée avant d’être appliquée, et tout
+    peut être annulé en un clic.</p>
 
   <h2 id="installer">Installer</h2>
   <p>Ouvrez un terminal (touche Super, puis tapez « Terminal ») et collez cette commande :</p>
   <div class="cmd">
-    <code id="install-cmd">curl -fsSL https://raw.githubusercontent.com/Joss943/kinginlinux/main/install.sh | bash</code>
+    <code id="install-cmd">curl -fsSL https://raw.githubusercontent.com/Joss943/LinXtailor/main/install.sh | bash</code>
     <button type="button" id="copy" aria-label="Copier la commande d’installation">Copier</button>
   </div>
   <p role="status" id="copied" style="min-height:1.5em;margin:0"></p>
   <ol>
     <li>Le script vérifie votre distribution et installe Python si besoin. Votre mot de passe n’est demandé que dans ce cas.</li>
-    <li>Desktop Tailor est installé pour votre utilisateur, dans <code>~/.local/share/desktop-tailor</code>.</li>
-    <li>Lancez-le depuis le menu des applications : <strong>Desktop Tailor</strong>.</li>
+    <li>LinXtailor est installé pour votre utilisateur, dans <code>~/.local/share/linxtailor</code>.</li>
+    <li>Lancez-le depuis le menu des applications : <strong>LinXtailor</strong>.</li>
   </ol>
-  <p>Vous préférez lire le script avant de le lancer ? <a href="https://github.com/Joss943/kinginlinux/blob/main/install.sh">install.sh sur GitHub</a>.
-    Archive seule : <a href="https://github.com/Joss943/kinginlinux/releases/latest">dernière version</a>.</p>
+  <p>Vous préférez lire le script avant de le lancer ? <a href="https://github.com/Joss943/LinXtailor/blob/main/install.sh">install.sh sur GitHub</a>.
+    Archive seule : <a href="https://github.com/Joss943/LinXtailor/releases/latest">dernière version</a>.</p>
 
   <h2>Ce que ça règle</h2>
   <div class="grid">
-    <div class="card"><h3>Votre style</h3><p>Thème clair ou sombre, fond d’écran, dock en bas ou à gauche, animations.</p></div>
+    <div class="card"><h3>Vos logiciels</h3><p>Vous utilisiez Photoshop, Office, Outlook, Paint, Steam ? L’équivalent Linux s’installe en un clic, sans mot de passe.</p></div>
+    <div class="card"><h3>Barre des tâches et menu Démarrer</h3><p>Extensions GNOME : barre des tâches, menu Démarrer, icônes près de l’horloge, historique Win+V.</p></div>
+    <div class="card"><h3>Votre style</h3><p>Thème clair ou sombre, fond d’écran, dock, animations, raccourcis façon Windows.</p></div>
     <div class="card"><h3>Vos habitudes de Windows</h3><p>Boutons réduire et agrandir, pavé numérique, pavé tactile, double-clic, heure en double démarrage.</p></div>
     <div class="card"><h3>Vos fichiers</h3><p>Vidéos MP4 et musiques MP3 lisibles, documents Word et Excel bien mis en page.</p></div>
     <div class="card"><h3>Sans risque</h3><p>Aperçu avant chaque changement, sauvegarde automatique, bouton « Tout annuler ».</p></div>
   </div>
 
   <h2>Vous arrivez de Windows ?</h2>
-  <p>Le <a href="problemes-migration.html">guide des problèmes fréquents</a> explique les 28 surprises les plus
-    courantes et comment les régler, que Desktop Tailor s’en charge ou non.</p>
+  <p>Le <a href="problemes-migration.html">guide des problèmes fréquents</a> explique les 30 surprises les plus
+    courantes et comment les régler, que LinXtailor s’en charge ou non.</p>
 
   <h2>Utilisation</h2>
-<pre>desktop-tailor              # lance l’application et ouvre le navigateur
-desktop-tailor --stop       # l’arrête
-desktop-tailor --uninstall  # la désinstalle (vos sauvegardes restent dans ~/.config/desktop-tailor)</pre>
+<pre>linxtailor              # lance l’application et ouvre le navigateur
+linxtailor --stop       # l’arrête
+linxtailor --uninstall  # la désinstalle (vos sauvegardes restent dans ~/.config/linxtailor)</pre>
 
   <h2>Confidentialité</h2>
   <p>Tout se passe sur votre ordinateur. L’application n’accepte que les connexions locales, et sa seule
-    connexion Internet est le téléchargement du fond d’écran que vous choisissez, après votre accord.</p>
+    seules connexions Internet sont celles que vous choisissez et validez : fond d’écran, logiciels et extensions.</p>
 
-  <footer>Code source : <a href="https://github.com/Joss943/kinginlinux">github.com/Joss943/kinginlinux</a></footer>
+  <footer>Code source : <a href="https://github.com/Joss943/LinXtailor">github.com/Joss943/LinXtailor</a></footer>
 </main>
 <script>
   document.getElementById('copy').addEventListener('click', async () => {

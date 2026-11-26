@@ -35,8 +35,8 @@ export default function Quiz() {
     setProfile({ ...p, ...patch });
     setDryrun(null);
   };
-  const next = () => navigate(step === QUIZ_STEPS ? '/apercu' : `/questions/${step + 1}`);
-  const back = () => navigate(step === 1 ? '/profil' : `/questions/${step - 1}`);
+  const next = () => navigate(step === QUIZ_STEPS ? '/personnaliser' : `/questions/${step + 1}`);
+  const back = () => navigate(step === 1 ? '/personnaliser' : `/questions/${step - 1}`);
   const common = { step, total: QUIZ_STEPS, onBack: back, onNext: next };
 
   switch (step) {

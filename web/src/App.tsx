@@ -7,6 +7,7 @@ import Welcome from './screens/Welcome';
 import Unsupported from './screens/Unsupported';
 import PersonaScreen from './screens/Persona';
 import Quiz from './screens/Quiz';
+import Customize from './screens/Customize';
 import DryRun from './screens/DryRun';
 import Progress from './screens/Progress';
 import Done from './screens/Done';
@@ -52,7 +53,7 @@ export default function App() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-5xl items-center gap-2 px-4 py-3">
           <Scissor className="text-indigo-700" aria-hidden="true" />
-          <span className="text-lg font-semibold">Desktop Tailor</span>
+          <span className="text-lg font-semibold">LinXtailor</span>
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-8">
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/" element={<Welcome />} />
           <Route path="/non-pris-en-charge" element={<Unsupported />} />
           <Route path="/profil" element={<Guard need="detection"><PersonaScreen /></Guard>} />
+          <Route path="/personnaliser" element={<Guard need="profile"><Customize /></Guard>} />
           <Route path="/questions/:step" element={<Guard need="profile"><Quiz /></Guard>} />
           <Route path="/apercu" element={<Guard need="profile"><DryRun /></Guard>} />
           <Route path="/application" element={<Guard need="dryrun"><Progress /></Guard>} />

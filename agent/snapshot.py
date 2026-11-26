@@ -25,6 +25,8 @@ GNOME_KEYS: list[tuple[str, str]] = [
     ("org.gnome.shell.extensions.dash-to-dock", "click-action"),
     ("org.gnome.desktop.peripherals.touchpad", "tap-to-click"),
     ("org.gnome.desktop.peripherals.touchpad", "click-method"),
+    ("org.gnome.shell", "enabled-extensions"),
+    ("org.gnome.shell", "disabled-extensions"),
 ]
 
 # Clés KDE (fichier, groupe, clé) modifiables par l'application.
@@ -32,7 +34,7 @@ KDE_KEYS: list[tuple[str, str, str]] = [
     ("kdeglobals", "General", "ColorScheme"),
     ("kdeglobals", "KDE", "AnimationDurationFactor"),
     ("kdeglobals", "PanelIcons", "Size"),
-    ("kcminputrc", "DesktopTailor", "DockPosition"),
+    ("kcminputrc", "LinXtailor", "DockPosition"),
     ("kglobalshortcutsrc", "kwin", "Show Desktop"),
     ("kglobalshortcutsrc", "kwin", "Window Close"),
     ("kcminputrc", "Keyboard", "NumLock"),
@@ -162,6 +164,26 @@ def rollback(os_id: str) -> bool:
         ok, out = run_command(cmd)
         executor.log(f"[rollback {'ok' if ok else 'erreur'}] {cmd} {out if not ok else ''}".strip())
         ok_all = ok_all and ok
+    # Logiciels Flathub et extensions GNOME installés par l'application.
+    for filename, template in (
+        ("installed-flatpaks.txt", "flatpak uninstall --user -y --noninteractive {}"),
+        ("installed-extensions.txt", "gnome-extensions uninstall {}"),
+    ):
+        path = config_dir() / filename
+        if not path.exists():
+            continue
+        items = path.read_text(encoding="utf-8").split()
+        failed = []
+        for item in items:
+            ok, out = run_command(template.format(item), timeout=600)
+            executor.log(f"[rollback {'ok' if ok else 'erreur'}] désinstallation {item}")
+            if not ok:
+                failed.append(item)
+        if failed:
+            path.write_text("\n".join(failed) + "\n", encoding="utf-8")
+            ok_all = False
+        else:
+            path.unlink()
     pkg_file = config_dir() / "installed-packages.txt"
     if pkg_file.exists():
         packages = pkg_file.read_text(encoding="utf-8").split()

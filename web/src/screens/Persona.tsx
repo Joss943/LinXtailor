@@ -23,7 +23,7 @@ export default function PersonaScreen() {
   const choose = (persona: Persona) => {
     setProfile(personaProfile(persona, d));
     setDryrun(null);
-    navigate('/questions/1');
+    navigate('/personnaliser');
   };
 
   const surprise = () => {
@@ -55,7 +55,7 @@ export default function PersonaScreen() {
         </p>
       )}
       <h1 className="text-2xl font-semibold">Qui êtes-vous ?</h1>
-      <p className="mt-1 text-slate-700">Choisissez le profil le plus proche ; vous pourrez tout ajuster ensuite.</p>
+      <p className="mt-1 text-slate-700">Choisissez le profil le plus proche : tout est pré-réglé, vous pourrez ajuster sur une seule page.</p>
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {PERSONAS.map((p) => (
           <PersonaCard

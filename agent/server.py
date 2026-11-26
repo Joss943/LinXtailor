@@ -1,4 +1,4 @@
-"""Agent local Desktop Tailor — FastAPI sur localhost:7420 uniquement."""
+"""Agent local LinXtailor — FastAPI sur localhost:7420 uniquement."""
 from __future__ import annotations
 
 import hashlib
@@ -22,7 +22,7 @@ PORT = 7420
 TOKEN_TTL_S = 15 * 60
 ALLOWED_ORIGIN = re.compile(r"^http://localhost(:\d{1,5})?$")
 
-app = FastAPI(title="Desktop Tailor", docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="LinXtailor", docs_url=None, redoc_url=None, openapi_url=None)
 
 app.add_middleware(
     CORSMiddleware,

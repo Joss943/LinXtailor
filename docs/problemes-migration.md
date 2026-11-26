@@ -3,7 +3,7 @@
 Fedora 40+, Ubuntu 22.04+, Debian 12+ — bureaux GNOME, KDE Plasma et XFCE.
 
 Pour chaque problème : ce que l’on constate, pourquoi, et comment le régler. La colonne
-**Desktop Tailor** indique si l’application le corrige elle-même (question « Vos habitudes de
+**LinXtailor** indique si l’application le corrige elle-même (question « Vos habitudes de
 Windows » ou raccourcis), si elle donne un conseil sur l’écran final, ou si le problème n’est
 traité qu’ici.
 
@@ -13,19 +13,21 @@ Légende : ✅ corrigé automatiquement · 💡 conseil dans l’application · 
 
 ## 1. Bureau et fenêtres
 
-| Problème | Pourquoi | Solution | Desktop Tailor |
+| Problème | Pourquoi | Solution | LinXtailor |
 |---|---|---|---|
 | Pas de boutons réduire et agrandir sur les fenêtres | Choix de conception de GNOME | `gsettings set org.gnome.desktop.wm.preferences button-layout 'appmenu:minimize,maximize,close'` | ✅ GNOME (KDE et XFCE les ont déjà) |
 | Cliquer sur l’icône d’une application dans le dock ne réduit pas sa fenêtre | Comportement par défaut de Dash to Dock / Ubuntu Dock | `gsettings set org.gnome.shell.extensions.dash-to-dock click-action 'minimize'` | ✅ GNOME |
-| Pas de barre des tâches en bas | GNOME place le dock à gauche (Ubuntu) ou le cache (Fedora, Debian) | Dash to Dock, position en bas | ✅ question « dock » |
-| Pas de menu Démarrer | GNOME utilise la vue d’ensemble | Touche Super (Windows), puis taper le nom de l’application | 📖 |
+| Pas de barre des tâches en bas | GNOME place le dock à gauche (Ubuntu) ou le cache (Fedora, Debian) | Dash to Dock en bas, ou Dash to Panel pour une vraie barre des tâches | ✅ dock ou extension « Barre des tâches » |
+| Pas de menu Démarrer | GNOME utilise la vue d’ensemble | Touche Super, puis taper le nom de l’application ; ou l’extension ArcMenu | ✅ extension « Menu Démarrer » |
 | Alt+Tab regroupe les fenêtres par application | GNOME bascule entre applications, pas entre fenêtres | `gsettings set org.gnome.desktop.wm.keybindings switch-windows "['<Alt>Tab']"` puis `gsettings set org.gnome.desktop.wm.keybindings switch-applications "[]"` | 📖 |
-| Pas d’icônes sur le bureau (GNOME) | GNOME n’affiche plus le bureau par défaut | Ubuntu : déjà présent (Desktop Icons NG). Fedora et Debian : installer l’extension « Desktop Icons NG (DING) » depuis le Gestionnaire d’extensions | 📖 |
+| Pas d’icônes sur le bureau (GNOME) | GNOME n’affiche plus le bureau par défaut | Ubuntu : déjà présent. Fedora et Debian : extension Desktop Icons NG (DING) | ✅ extension « Icônes sur le bureau » |
+| Pas d’icônes Discord, Steam… près de l’horloge | GNOME n’affiche pas la zone de notification | Extension AppIndicator (déjà présente sur Ubuntu) | ✅ extension « Icônes de la zone de notification » |
+| Pas d’historique du presse-papiers (Win+V) | Absent de GNOME | Extension Clipboard Indicator | ✅ extension « Historique du presse-papiers » |
 | Raccourcis clavier différents (Win+D, Alt+F4…) | Conventions propres à chaque bureau | Raccourcis « façon Windows » | ✅ question « raccourcis » |
 
 ## 2. Fichiers
 
-| Problème | Pourquoi | Solution | Desktop Tailor |
+| Problème | Pourquoi | Solution | LinXtailor |
 |---|---|---|---|
 | KDE ouvre les fichiers au simple clic | Ancien réglage par défaut de Plasma 5 | `kwriteconfig5 --file kdeglobals --group KDE --key SingleClick false` (ou `kwriteconfig6`) | ✅ KDE |
 | Pas de « Nouveau document » dans le clic droit (GNOME Fichiers) | Le menu se remplit à partir du dossier Modèles, vide par défaut | `touch "$(xdg-user-dir TEMPLATES)/Nouveau document texte.txt"` | 📖 |
@@ -36,7 +38,7 @@ Légende : ✅ corrigé automatiquement · 💡 conseil dans l’application · 
 
 ## 3. Matériel
 
-| Problème | Pourquoi | Solution | Desktop Tailor |
+| Problème | Pourquoi | Solution | LinXtailor |
 |---|---|---|---|
 | Un simple toucher du pavé tactile ne clique pas ; le clic droit se fait à deux doigts | Réglages par défaut de GNOME | `gsettings set org.gnome.desktop.peripherals.touchpad tap-to-click true` et `click-method 'areas'` | ✅ GNOME (ailleurs : Paramètres, Pavé tactile) |
 | Pavé numérique éteint à l’ouverture de session | L’état n’est pas mémorisé par défaut | GNOME : `numlock-state true` ; KDE : `kcminputrc [Keyboard] NumLock=0` ; XFCE : `keyboards /Default/Numlock` | ✅ |
@@ -46,17 +48,17 @@ Légende : ✅ corrigé automatiquement · 💡 conseil dans l’application · 
 
 ## 4. Logiciels
 
-| Problème | Pourquoi | Solution | Desktop Tailor |
+| Problème | Pourquoi | Solution | LinXtailor |
 |---|---|---|---|
-| Les fichiers `.exe` ne s’installent pas | Programmes Windows, pas Linux | Chercher dans la logithèque (Logiciels, Centre d’applications, Discover) ou sur Flathub. En dernier recours : Bottles (Wine) | 💡 |
+| Les fichiers `.exe` ne s’installent pas | Programmes Windows, pas Linux | Installer l’équivalent depuis la logithèque ou Flathub. En dernier recours : Bottles (Wine) | ✅ section « Vos logiciels Windows » + 💡 |
 | Vidéos MP4 ou musiques MP3 illisibles | Codecs brevetés absents par défaut (Fedora surtout) | Fedora : RPM Fusion puis `gstreamer1-plugin-libav gstreamer1-plugins-ugly`. Ubuntu et Debian : `gstreamer1.0-libav gstreamer1.0-plugins-ugly` | ✅ |
 | Documents Word ou Excel décalés dans LibreOffice | Polices Calibri, Cambria, Arial et Times absentes | Polices métriquement compatibles : Carlito, Caladea, Liberation | ✅ |
-| Microsoft Office absent | Pas de version Linux | LibreOffice (installé par défaut sur Ubuntu, Fedora et Debian), ou Microsoft 365 dans le navigateur | 📖 |
+| Microsoft Office absent | Pas de version Linux | LibreOffice (installé par défaut), ONLYOFFICE (interface proche d’Office), ou Microsoft 365 dans le navigateur | ✅ ONLYOFFICE dans « Vos logiciels » |
 | Jeux Windows | Steam utilise Proton | Steam : Paramètres, Compatibilité, activer Steam Play. Les jeux à anti-triche noyau peuvent refuser de se lancer | 📖 |
 
 ## 5. Système
 
-| Problème | Pourquoi | Solution | Desktop Tailor |
+| Problème | Pourquoi | Solution | LinXtailor |
 |---|---|---|---|
 | L’heure de Windows se décale d’une ou deux heures en double démarrage | Windows règle l’horloge matérielle à l’heure locale, Linux en UTC | `sudo timedatectl set-local-rtc 1` | ✅ (sur demande) |
 | Pas de Ctrl+Alt+Suppr / Gestionnaire des tâches | Outil différent | GNOME : « Moniteur système ». KDE : Ctrl+Échap. XFCE : « Gestionnaire des tâches » | 📖 |
@@ -68,7 +70,7 @@ Légende : ✅ corrigé automatiquement · 💡 conseil dans l’application · 
 
 ## Pourquoi tout n’est pas automatique
 
-Desktop Tailor ne corrige que ce qui est **sûr, réversible et vérifiable dans le dry-run** :
+LinXtailor ne corrige que ce qui est **sûr, réversible et vérifiable dans le dry-run** :
 réglages du bureau, et paquets issus des dépôts officiels ou de RPM Fusion. Tout ce qui touche au
 démarrage (pilotes NVIDIA, Secure Boot), à Windows lui-même (démarrage rapide) ou à vos fichiers
 personnels (dossier Modèles) reste un conseil, pour ne jamais rien casser sans que vous l’ayez
