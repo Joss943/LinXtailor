@@ -8,46 +8,33 @@ questions. Chaque modification est montrée avant d’être appliquée, et tout 
 
 ## Installation
 
-Prérequis : Node.js 18 ou plus récent, Python 3.10 ou plus récent.
+**Page d’installation : <https://joss943.github.io/kinginlinux/>**
 
-### Fedora 40+
+Sur Fedora 40+, Ubuntu 22.04+ ou Debian 12+, ouvrez un terminal et collez :
 
 ```sh
-sudo dnf install -y git python3 nodejs npm
+curl -fsSL https://raw.githubusercontent.com/Joss943/kinginlinux/main/install.sh | bash
+```
+
+Puis lancez **Desktop Tailor** depuis le menu des applications, ou tapez `desktop-tailor` dans un terminal.
+
+- Installation pour votre utilisateur seulement, dans `~/.local/share/desktop-tailor`. Node.js n’est pas
+  nécessaire : l’interface est fournie déjà compilée dans la [dernière version](https://github.com/Joss943/kinginlinux/releases/latest).
+- Le mot de passe administrateur n’est demandé que s’il manque Python (et `python3-venv` sur Ubuntu et Debian).
+- `desktop-tailor --stop` arrête l’application ; `desktop-tailor --uninstall` la désinstalle.
+
+### Depuis les sources (développement)
+
+Prérequis : Node.js 18+, Python 3.10+.
+
+```sh
 git clone https://github.com/Joss943/kinginlinux.git && cd kinginlinux
 python3 -m venv .venv && .venv/bin/pip install -r agent/requirements.txt
-npm --prefix web ci && npm --prefix web run build
+npm --prefix web ci
+.venv/bin/python agent/server.py & npm --prefix web run dev
 ```
 
-### Ubuntu 22.04+
-
-```sh
-sudo apt install -y git python3-venv && sudo snap install node --classic
-git clone https://github.com/Joss943/kinginlinux.git && cd kinginlinux
-python3 -m venv .venv && .venv/bin/pip install -r agent/requirements.txt
-npm --prefix web ci && npm --prefix web run build
-```
-
-(Le paquet `nodejs` d’Ubuntu 22.04 est trop ancien, d’où le snap.)
-
-### Debian 12+
-
-```sh
-sudo apt install -y git python3-venv nodejs npm
-git clone https://github.com/Joss943/kinginlinux.git && cd kinginlinux
-python3 -m venv .venv && .venv/bin/pip install -r agent/requirements.txt
-npm --prefix web ci && npm --prefix web run build
-```
-
-## Lancement
-
-Depuis votre session graphique, dans le dossier `kinginlinux` :
-
-```sh
-.venv/bin/python agent/server.py & npm --prefix web run preview
-```
-
-Puis ouvrez <http://localhost:5173>.
+Puis ouvrez <http://localhost:5173>. `bash scripts/package.sh` produit l’archive publiée dans les versions.
 
 ## Fonctionnement
 

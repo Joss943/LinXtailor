@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Desktop Tailor — installer</title>
+  <meta name="description" content="Personnalisez votre bureau Linux en quelques questions. Fedora, Ubuntu, Debian.">
+  <style>
+    :root { --ink:#0f172a; --muted:#334155; --line:#e2e8f0; --brand:#4338ca; --bg:#f8fafc; --code:#0f172a; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:16px/1.6 system-ui, -apple-system, "Segoe UI", Ubuntu, Cantarell, sans-serif; color:var(--ink); background:var(--bg); }
+    main { max-width: 52rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+    h1 { font-size: 2.25rem; line-height:1.2; margin:0 0 .5rem; }
+    h2 { font-size: 1.35rem; margin: 2.5rem 0 .75rem; }
+    p, li { color: var(--muted); }
+    .lead { font-size: 1.15rem; }
+    .badge { display:inline-block; font-size:.85rem; font-weight:600; color:var(--brand); background:#eef2ff; border-radius:999px; padding:.15rem .75rem; margin-bottom:1rem; }
+    .cmd { display:flex; gap:.5rem; align-items:stretch; margin: 1rem 0; }
+    .cmd code { flex:1; display:block; overflow-x:auto; white-space:nowrap; background:var(--code); color:#f1f5f9; padding: .9rem 1rem; border-radius:.6rem; font: 15px/1.4 ui-monospace, "DejaVu Sans Mono", monospace; }
+    button { font: inherit; font-weight:600; color:#fff; background:var(--brand); border:0; border-radius:.6rem; padding:0 1.1rem; cursor:pointer; }
+    button:hover { background:#3730a3; }
+    button:focus-visible, a:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 2px; }
+    a { color: var(--brand); }
+    .grid { display:grid; gap:1rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+    .card { background:#fff; border:1px solid var(--line); border-radius:.75rem; padding:1rem 1.25rem; }
+    .card h3 { margin:.2rem 0 .4rem; font-size:1.05rem; }
+    .card p { margin:0; font-size:.95rem; }
+    ol li { margin:.35rem 0; }
+    footer { margin-top:3rem; font-size:.9rem; color:var(--muted); border-top:1px solid var(--line); padding-top:1rem; }
+    pre { background:var(--code); color:#f1f5f9; padding:.9rem 1rem; border-radius:.6rem; overflow-x:auto; font: 14px/1.5 ui-monospace, "DejaVu Sans Mono", monospace; }
+  </style>
+</head>
+<body>
+<main>
+  <span class="badge">Fedora · Ubuntu · Debian — GNOME, KDE Plasma, XFCE</span>
+  <h1>Desktop Tailor</h1>
+  <p class="lead">Un bureau Linux taillé pour vous, en quelques questions. Chaque modification vous est montrée
+    avant d’être appliquée, et tout peut être annulé en un clic.</p>
+
+  <h2 id="installer">Installer</h2>
+  <p>Ouvrez un terminal (touche Super, puis tapez « Terminal ») et collez cette commande :</p>
+  <div class="cmd">
+    <code id="install-cmd">curl -fsSL https://raw.githubusercontent.com/Joss943/kinginlinux/main/install.sh | bash</code>
+    <button type="button" id="copy" aria-label="Copier la commande d’installation">Copier</button>
+  </div>
+  <p role="status" id="copied" style="min-height:1.5em;margin:0"></p>
+  <ol>
+    <li>Le script vérifie votre distribution et installe Python si besoin. Votre mot de passe n’est demandé que dans ce cas.</li>
+    <li>Desktop Tailor est installé pour votre utilisateur, dans <code>~/.local/share/desktop-tailor</code>.</li>
+    <li>Lancez-le depuis le menu des applications : <strong>Desktop Tailor</strong>.</li>
+  </ol>
+  <p>Vous préférez lire le script avant de le lancer ? <a href="https://github.com/Joss943/kinginlinux/blob/main/install.sh">install.sh sur GitHub</a>.
+    Archive seule : <a href="https://github.com/Joss943/kinginlinux/releases/latest">dernière version</a>.</p>
+
+  <h2>Ce que ça règle</h2>
+  <div class="grid">
+    <div class="card"><h3>Votre style</h3><p>Thème clair ou sombre, fond d’écran, dock en bas ou à gauche, animations.</p></div>
+    <div class="card"><h3>Vos habitudes de Windows</h3><p>Boutons réduire et agrandir, pavé numérique, pavé tactile, double-clic, heure en double démarrage.</p></div>
+    <div class="card"><h3>Vos fichiers</h3><p>Vidéos MP4 et musiques MP3 lisibles, documents Word et Excel bien mis en page.</p></div>
+    <div class="card"><h3>Sans risque</h3><p>Aperçu avant chaque changement, sauvegarde automatique, bouton « Tout annuler ».</p></div>
+  </div>
+
+  <h2>Vous arrivez de Windows ?</h2>
+  <p>Le <a href="problemes-migration.html">guide des problèmes fréquents</a> explique les 28 surprises les plus
+    courantes et comment les régler, que Desktop Tailor s’en charge ou non.</p>
+
+  <h2>Utilisation</h2>
+<pre>desktop-tailor              # lance l’application et ouvre le navigateur
+desktop-tailor --stop       # l’arrête
+desktop-tailor --uninstall  # la désinstalle (vos sauvegardes restent dans ~/.config/desktop-tailor)</pre>
+
+  <h2>Confidentialité</h2>
+  <p>Tout se passe sur votre ordinateur. L’application n’accepte que les connexions locales, et sa seule
+    connexion Internet est le téléchargement du fond d’écran que vous choisissez, après votre accord.</p>
+
+  <footer>Code source : <a href="https://github.com/Joss943/kinginlinux">github.com/Joss943/kinginlinux</a></footer>
+</main>
+<script>
+  document.getElementById('copy').addEventListener('click', async () => {
+    const text = document.getElementById('install-cmd').textContent;
+    try { await navigator.clipboard.writeText(text); document.getElementById('copied').textContent = 'Commande copiée.'; }
+    catch { document.getElementById('copied').textContent = 'Sélectionnez la commande et copiez-la avec Ctrl+C.'; }
+  });
+</script>
+</body>
+</html>

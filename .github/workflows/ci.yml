@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Tests de l'agent
+        run: |
+          pip install -r agent/requirements.txt
+          python -m unittest discover -s agent/tests -v
+      - name: Construction de l'archive
+        run: bash scripts/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-tailor
+          path: dist/desktop-tailor.tar.gz
+
+  install:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["ubuntu:22.04", "ubuntu:24.04", "debian:12", "fedora:41"]
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-tailor
+      - name: Utilisateur non root avec sudo
+        run: |
+          if command -v dnf >/dev/null; then dnf install -y sudo procps-ng shadow-utils; \
+          else apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y sudo procps tzdata; fi
+          useradd -m testeur
+          echo "testeur ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/testeur
+          cp install.sh desktop-tailor.tar.gz /home/testeur/ && chown testeur /home/testeur/*
+      - name: Installation
+        run: sudo -u testeur -H env DT_ARCHIVE=/home/testeur/desktop-tailor.tar.gz bash /home/testeur/install.sh
+      - name: Lancement et vérification
+        run: |
+          sudo -u testeur -H /home/testeur/.local/bin/desktop-tailor
+          curl -fsS http://127.0.0.1:7420/health | grep -q '"ok"'
+          curl -fsS -H "Origin: http://localhost:5173" http://127.0.0.1:7420/detect
+          curl -fsS http://127.0.0.1:5173/ | grep -q "Desktop Tailor"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Origin: http://evil.example' http://127.0.0.1:7420/health)" = 403
+          test -f /home/testeur/.local/share/applications/desktop-tailor.desktop
+          sudo -u testeur -H /home/testeur/.local/bin/desktop-tailor --stop
+          sudo -u testeur -H /home/testeur/.local/bin/desktop-tailor --uninstall
+          test ! -e /home/testeur/.local/share/desktop-tailor
