@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle, Download, Home, InfoCircle, Rewind, Upload } from 'iconoir-react';
 import { api } from '../api/client';
 import { useApp } from '../App';
-import { APP_OPTIONS, COMFORT_OPTIONS, EXTENSION_OPTIONS, LABELS, PERSONAS, WALLPAPERS, parseProfile } from '../profile';
+import { APP_OPTIONS, COMFORT_OPTIONS, ESSENTIAL_OPTIONS, EXTENSION_OPTIONS, LABELS, PERSONAS, WALLPAPERS, parseProfile } from '../profile';
 import { tipsFor } from '../tips';
 
 export default function Done() {
@@ -24,6 +24,12 @@ export default function Done() {
     [
       'Habitudes Windows',
       p.comfort.length ? COMFORT_OPTIONS.filter((c) => p.comfort.includes(c.id)).map((c) => c.title).join(', ') : 'Aucune',
+    ],
+    [
+      'Essentiels (top 5)',
+      p.essentials.length
+        ? ESSENTIAL_OPTIONS.filter((e) => p.essentials.includes(e.id)).map((e) => e.title).join(', ')
+        : 'Aucun',
     ],
     ['Logiciels', p.apps.length ? APP_OPTIONS.filter((a) => p.apps.includes(a.id)).map((a) => a.name).join(', ') : 'Aucun'],
     [

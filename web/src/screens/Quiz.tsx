@@ -4,13 +4,14 @@ import {
   ArrowDown, Brightness, Check, HalfMoon, LayoutLeft, MediaImage, MinusCircle, Play, Rewind,
   ShortcutSquare, SunLight, Terminal,
 } from 'iconoir-react';
-import type { Comfort, Profile } from '../types';
+import CheckCard from '../components/CheckCard';
+import type { Comfort, Essential, Profile } from '../types';
 import QuestionCard, { OptionButton } from '../components/QuestionCard';
 import { DesktopMock } from '../components/BeforeAfter';
-import { COMFORT_OPTIONS, LABELS, WALLPAPERS, isComfortAvailable, isWeakMachine } from '../profile';
+import { COMFORT_OPTIONS, ESSENTIAL_OPTIONS, LABELS, WALLPAPERS, isComfortAvailable, isWeakMachine } from '../profile';
 import { useApp } from '../App';
 
-export const QUIZ_STEPS = 6;
+export const QUIZ_STEPS = 7;
 
 function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -131,7 +132,7 @@ export default function Quiz() {
           </Group>
         </QuestionCard>
       );
-    default: {
+    case 6: {
       const toggle = (c: Comfort) =>
         update({ comfort: p.comfort.includes(c) ? p.comfort.filter((x) => x !== c) : [...p.comfort, c] });
       return (
@@ -160,6 +161,22 @@ export default function Quiz() {
                 </label>
               );
             })}
+          </div>
+        </QuestionCard>
+      );
+    }
+    default: {
+      const toggle = (e: Essential) =>
+        update({ essentials: p.essentials.includes(e) ? p.essentials.filter((x) => x !== e) : [...p.essentials, e] });
+      return (
+        <QuestionCard {...common} title="Les essentiels de première installation"
+          hint="Le top 5 de ce qui manque juste après l’installation. Ces réglages demandent le mot de passe administrateur."
+          onSkip={() => { update({ essentials: [] }); next(); }}>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {ESSENTIAL_OPTIONS.map((e) => (
+              <CheckCard key={e.id} checked={p.essentials.includes(e.id)} title={e.title} description={e.problem}
+                onChange={() => toggle(e.id)} />
+            ))}
           </div>
         </QuestionCard>
       );

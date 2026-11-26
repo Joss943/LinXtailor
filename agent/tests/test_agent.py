@@ -59,10 +59,11 @@ def free_port() -> int:
 
 
 def probe(installed=(), universe=False, paths=(), packages=(), flathub=False,
-          flatpaks=(), extensions=(), enabled=()):
+          flatpaks=(), extensions=(), enabled=(), components=()):
     return executor.Probe(
         which=lambda n: f"/usr/bin/{n}" if n in installed else None,
         universe_enabled=lambda: universe,
+        component_enabled=lambda c: c in components,
         path_exists=lambda p: p in paths,
         package_installed=lambda os_id, pkg: pkg in packages,
         flathub_enabled=lambda: flathub,
@@ -237,6 +238,49 @@ class MappingTests(unittest.TestCase):
         acts = executor.build_actions({**PROFILE, **v3}, {**DETECTION, "desktop": "KDE"},
                                       probe(installed=["konsole"]))
         self.assertFalse(any("gnome-extensions" in a.command or "gdbus" in a.command for a in acts))
+
+    def test_essentials(self):
+        v4 = {"schemaVersion": 4, "essentials": list(executor.ESSENTIALS)}
+        acts = executor.build_actions({**PROFILE, **v4}, DETECTION,
+                                      probe(installed=["konsole"], universe=True, packages=["ufw"]))
+        by_cmd = {a.command: a for a in acts}
+        self.assertEqual(by_cmd["pkexec add-apt-repository -y multiverse"].risk, "repo-add")
+        self.assertEqual(by_cmd["pkexec apt install -y unzip p7zip-full p7zip-rar"].risk, "package-install")
+        self.assertIn("pkexec apt install -y linux-firmware", by_cmd)
+        self.assertEqual(by_cmd["pkexec apt install -y linux-firmware"].packages, [])  # gardé au rollback
+        self.assertNotIn("pkexec apt install -y ufw", by_cmd)  # déjà installé
+        self.assertIn("pkexec ufw enable", by_cmd)
+        self.assertTrue(any("unattended-upgrades" in c and "dpkg-reconfigure" in c for c in by_cmd))
+        self.assertIn("pkexec apt install -y timeshift", by_cmd)
+        for a in acts:
+            if a.risk != "none" or a.command.startswith("pkexec"):
+                self.assertTrue(a.command.startswith("pkexec"), a.command)
+                self.assertIn("pkexec", a.description)
+        # Debian : dépôt non-free-firmware, sauf s'il est déjà actif
+        deb = {**DETECTION, "os": "debian", "osVersion": "12"}
+        cmds = [a.command for a in executor.build_actions(
+            {**PROFILE, "schemaVersion": 4, "essentials": ["firmware"]}, deb, probe(installed=["konsole"]))]
+        self.assertEqual(cmds[-2:], ["pkexec apt-add-repository -y non-free-firmware",
+                                     "pkexec apt install -y firmware-linux-nonfree"])
+        cmds = [a.command for a in executor.build_actions(
+            {**PROFILE, "schemaVersion": 4, "essentials": ["firmware"]}, deb,
+            probe(installed=["konsole"], components=["non-free-firmware"]))]
+        self.assertNotIn("pkexec apt-add-repository -y non-free-firmware", cmds)
+        # Fedora : firewalld et dnf5-automatic
+        fed = {**DETECTION, "os": "fedora", "osVersion": "43"}
+        cmds = [a.command for a in executor.build_actions(
+            {**PROFILE, "schemaVersion": 4, "essentials": ["firewall", "autoUpdates"]}, fed,
+            probe(installed=["konsole"], packages=["firewalld"]))]
+        self.assertIn("pkexec systemctl enable --now firewalld", cmds)
+        self.assertIn("pkexec dnf install -y dnf5-plugin-automatic", cmds)
+        self.assertTrue(any("dnf5-automatic.timer" in c for c in cmds))
+
+    def test_validation_v4(self):
+        self.assertEqual(executor.validate_profile(
+            {**PROFILE, "schemaVersion": 4, "essentials": ["archives", "backup"]}), [])
+        self.assertTrue(executor.validate_profile({**PROFILE, "schemaVersion": 3, "essentials": ["archives"]}))
+        self.assertTrue(executor.validate_profile({**PROFILE, "schemaVersion": 4, "essentials": ["antivirus"]}))
+        self.assertTrue(executor.validate_profile({**PROFILE, "schemaVersion": 4, "essentials": ["backup", "backup"]}))
 
     def test_validation_v3(self):
         self.assertEqual(executor.validate_profile(

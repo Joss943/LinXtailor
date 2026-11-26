@@ -62,6 +62,9 @@ Puis ouvrez <http://localhost:5173>. `bash scripts/package.sh` produit l’archi
    - **Extensions GNOME** : barre des tâches façon Windows, menu Démarrer, icônes de la zone de
      notification, historique du presse-papiers (Win+V), icônes sur le bureau, lien avec le téléphone,
      anti-veille. Installées depuis extensions.gnome.org, GNOME demande confirmation pour chacune.
+   - **Essentiels de première installation (top 5)** : ouvrir les .zip, .rar et .7z, pilotes Wi-Fi et
+     Bluetooth non libres, pare-feu activé, mises à jour de sécurité automatiques, points de
+     restauration Timeshift. Demande le mot de passe administrateur (pkexec), annoncé dans le dry-run.
    - **Habitudes Windows** :
    - boutons réduire et agrandir, et clic sur le dock qui réduit la fenêtre (GNOME) ;
    - pavé numérique allumé à l’ouverture de session ;
@@ -104,17 +107,18 @@ Puis ouvrez <http://localhost:5173>. `bash scripts/package.sh` produit l’archi
 
 Toute autre route ou méthode répond 404.
 
-## Profil (schemaVersion 3)
+## Profil (schemaVersion 4)
 
 ```json
-{ "schemaVersion": 3, "persona": "migrator", "theme": "light", "wallpaper": null,
+{ "schemaVersion": 4, "persona": "migrator", "theme": "light", "wallpaper": null,
   "dock": { "position": "bottom", "iconSize": "medium" }, "animations": "reduced",
   "terminal": "gnome-terminal", "shortcuts": "windows",
   "comfort": ["windowButtons", "numlock", "codecs", "officeFonts", "touchpad"],
-  "apps": ["onlyoffice", "vlc"], "extensions": ["taskbar", "startMenu", "trayIcons"] }
+  "apps": ["onlyoffice", "vlc"], "extensions": ["taskbar", "startMenu", "trayIcons"],
+  "essentials": ["archives", "firmware", "firewall", "autoUpdates", "backup"] }
 ```
 
-Les profils exportés en version 1 ou 2 restent importables.
+Les profils exportés en version 1, 2 ou 3 restent importables.
 
 ## Tests
 
@@ -131,3 +135,6 @@ npm --prefix web run build
   peut ne pas correspondre au format attendu par votre version de xfce4-panel.
 - Plasma 6 ne fournit que `kwriteconfig6` : l’agent l’utilise automatiquement si `kwriteconfig5` est absent.
 - Le fond d’écran KDE n’est pas restauré par « Tout annuler ».
+- « Tout annuler » désinstalle les outils ajoutés par les essentiels, mais ne désactive pas un pare-feu
+  ou des mises à jour automatiques qui étaient déjà installés. Les pilotes non libres sont conservés,
+  car les retirer pourrait couper le Wi-Fi.
