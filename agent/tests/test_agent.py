@@ -47,6 +47,8 @@ def fake_run(command: str, timeout: int = 60):
     COMMANDS.append(command)
     if command.startswith("gsettings get"):
         return True, "'default'"
+    if command.startswith("timedatectl show"):
+        return True, "no"
     return True, "ok"
 
 
@@ -172,6 +174,21 @@ class MappingTests(unittest.TestCase):
         self.assertFalse(any("button-layout" in x or "install" in x for x in c))
         self.assertTrue(any("--group Keyboard --key NumLock 0" in x for x in c))
 
+    def test_more_windows_habits(self):
+        extra = {"schemaVersion": 2, "comfort": ["windowButtons", "touchpad", "doubleClick", "dualBootClock"]}
+        c = self.cmds("GNOME", p=probe(installed=["konsole"]), **extra)
+        self.assertIn("gsettings set org.gnome.shell.extensions.dash-to-dock click-action 'minimize'", c)
+        self.assertIn("gsettings set org.gnome.desktop.peripherals.touchpad tap-to-click true"
+                      " && gsettings set org.gnome.desktop.peripherals.touchpad click-method 'areas'", c)
+        self.assertIn("pkexec timedatectl set-local-rtc 1", c)
+        self.assertFalse(any("SingleClick" in x for x in c))  # GNOME : déjà au double-clic
+        c = self.cmds("KDE", p=probe(installed=["konsole", "kwriteconfig5"]), **extra)
+        self.assertIn("kwriteconfig5 --file kdeglobals --group KDE --key SingleClick false", c)
+        self.assertFalse(any("touchpad" in x or "button-layout" in x for x in c))
+        acts = executor.build_actions({**PROFILE, **extra}, DETECTION, probe(installed=["konsole"]))
+        rtc = next(a for a in acts if "set-local-rtc" in a.command)
+        self.assertIn("droits administrateur requis", rtc.description)
+
     def test_validation(self):
         self.assertEqual(executor.validate_profile({**PROFILE, "schemaVersion": 2, "comfort": ["codecs"]}), [])
         self.assertTrue(executor.validate_profile({**PROFILE, "comfort": ["codecs"]}))
@@ -296,6 +313,17 @@ class ServerTests(unittest.TestCase):
         lines = [json.loads(l) for l in body.splitlines() if l]
         self.assertEqual(lines[-1]["status"], "error")
         self.assertEqual(sum(1 for l in lines if l["status"] == "error"), 1)
+
+    def test_rollback_restores_dual_boot_clock_only_if_changed(self):
+        folder = snapshot.take("XFCE")
+        self.assertEqual(json.loads((folder / "system.json").read_text(encoding="utf-8")), {"localRtc": "no"})
+        self.assertNotIn("pkexec timedatectl set-local-rtc 0", snapshot.restore_commands(folder))
+        original = snapshot.run_command
+        snapshot.run_command = lambda c, timeout=60: (True, "yes") if c.startswith("timedatectl") else (True, "")
+        try:
+            self.assertIn("pkexec timedatectl set-local-rtc 0", snapshot.restore_commands(folder))
+        finally:
+            snapshot.run_command = original
 
     def test_history_keeps_five(self):
         for _ in range(7):

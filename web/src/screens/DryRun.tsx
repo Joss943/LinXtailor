@@ -27,7 +27,7 @@ export default function DryRun() {
   }, [dryrun, p, setDryrun]);
 
   const wallpaper = WALLPAPERS.find((w) => w.file === p.wallpaper);
-  const privileged = dryrun?.actions.some((a) => a.risk !== 'none') ?? false;
+  const privileged = dryrun?.actions.some((a) => a.command.includes('pkexec')) ?? false;
   const canApply = !!dryrun && dryrun.actions.length > 0 && (!wallpaper || consent);
 
   return (
@@ -50,8 +50,8 @@ export default function DryRun() {
           {privileged && (
             <p className="flex items-start gap-2 rounded-lg bg-yellow-50 p-3 text-yellow-900">
               <ShieldCheck aria-hidden="true" className="shrink-0" />
-              Certaines actions installent des logiciels : votre mot de passe administrateur sera demandé dans
-              une fenêtre du système, avec la raison affichée pour chaque action.
+              Certaines actions modifient le système : votre mot de passe administrateur sera demandé dans une
+              fenêtre du système. La raison est indiquée pour chaque action.
             </p>
           )}
           <ActionList actions={dryrun.actions} showCommands={p.persona === 'tinkerer'} />

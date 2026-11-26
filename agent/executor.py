@@ -22,7 +22,10 @@ ANIMATIONS = ("full", "reduced", "off")
 TERMINALS = ("gnome-terminal", "konsole", "xfce4-terminal")
 SHORTCUTS = ("linux", "windows", "macos")
 # Irritants fréquents des personnes venant de Windows (schemaVersion 2).
-COMFORT = ("windowButtons", "numlock", "codecs", "officeFonts")
+COMFORT = (
+    "windowButtons", "numlock", "codecs", "officeFonts",
+    "touchpad", "doubleClick", "dualBootClock",
+)
 SCHEMA_VERSIONS = (1, 2)
 
 # Fonds d'écran du domaine public (Wikimedia Commons, Special:FilePath).
@@ -407,11 +410,15 @@ def build_actions(profile: dict, detection: dict, probe: Probe | None = None) ->
     # --- Habitudes Windows (schemaVersion 2) -------------------------------
     comfort = profile.get("comfort", [])
     if "windowButtons" in comfort and de == "GNOME":
-        # KDE et XFCE affichent déjà ces boutons.
+        # KDE et XFCE affichent déjà ces boutons et réduisent au clic sur la barre des tâches.
         add(
             "Afficher les boutons réduire et agrandir sur les fenêtres",
             "gsettings set org.gnome.desktop.wm.preferences button-layout "
             "'appmenu:minimize,maximize,close'",
+        )
+        add(
+            "Réduire une fenêtre en cliquant sur son icône dans le dock",
+            "gsettings set org.gnome.shell.extensions.dash-to-dock click-action 'minimize'",
         )
     if "numlock" in comfort:
         label = "Allumer le pavé numérique à l'ouverture de session"
@@ -434,6 +441,24 @@ def build_actions(profile: dict, detection: dict, probe: Probe | None = None) ->
     if "officeFonts" in comfort:
         ensure_packages(
             FONT_PACKAGES[os_id], "les polices compatibles avec les documents Word et Excel"
+        )
+    if "touchpad" in comfort and de == "GNOME":
+        add(
+            "Pavé tactile comme sous Windows : toucher pour cliquer, clic droit en bas à droite",
+            "gsettings set org.gnome.desktop.peripherals.touchpad tap-to-click true"
+            " && gsettings set org.gnome.desktop.peripherals.touchpad click-method 'areas'",
+        )
+    if "doubleClick" in comfort and de == "KDE":
+        # GNOME et XFCE ouvrent déjà les fichiers au double-clic.
+        add(
+            "Ouvrir les fichiers par double-clic",
+            f"{kw} --file kdeglobals --group KDE --key SingleClick false",
+        )
+    if "dualBootClock" in comfort:
+        add(
+            "Garder la même heure que Windows en double démarrage — "
+            "droits administrateur requis (pkexec) pour régler l'horloge matérielle",
+            "pkexec timedatectl set-local-rtc 1",
         )
 
     actions = []

@@ -57,15 +57,22 @@ Puis ouvrez <http://localhost:5173>.
    ou « Surprends-moi ».
 3. **Questions** : thème, fond d’écran, dock, animations, terminal et raccourcis, puis
    **habitudes de Windows** :
-   - boutons réduire et agrandir sur les fenêtres (GNOME) ;
+   - boutons réduire et agrandir, et clic sur le dock qui réduit la fenêtre (GNOME) ;
    - pavé numérique allumé à l’ouverture de session ;
    - codecs vidéo et audio (MP4, MP3…) ;
-   - polices compatibles avec les documents Word et Excel (Carlito, Caladea, Liberation).
+   - polices compatibles avec les documents Word et Excel (Carlito, Caladea, Liberation) ;
+   - pavé tactile comme sous Windows : toucher pour cliquer, clic droit en bas à droite (GNOME) ;
+   - ouverture des fichiers par double-clic (KDE) ;
+   - même heure que Windows en double démarrage.
+
+   La liste complète des problèmes rencontrés en arrivant de Windows, avec leurs solutions, est dans
+   [docs/problemes-migration.md](docs/problemes-migration.md).
 4. **Dry-run** : aperçu avant/après et liste exacte des actions. Badge jaune pour une installation de
    paquet, badge orange pour un ajout de dépôt. Le bidouilleur voit et peut copier chaque commande.
 5. **Application** : journal en temps réel. En cas d’erreur, l’application s’arrête et propose de
    restaurer l’état précédent.
-6. **Terminé** : récapitulatif, « Tout annuler », export et import du profil en JSON.
+6. **Terminé** : récapitulatif, « Tout annuler », export et import du profil en JSON, et conseils
+   « Bon à savoir » adaptés à la machine (pilote NVIDIA, logiciels, double démarrage).
 
 ## Garde-fous
 

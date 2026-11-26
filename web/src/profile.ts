@@ -39,11 +39,23 @@ export const WALLPAPERS: WallpaperInfo[] = [
   },
 ];
 
-export const COMFORT_OPTIONS: { id: Comfort; title: string; problem: string }[] = [
+export interface ComfortOption {
+  id: Comfort;
+  title: string;
+  problem: string;
+  /** Bureaux où la correction s'applique (tous si absent). */
+  only?: Desktop[];
+  /** Explication affichée sur les autres bureaux. */
+  elseNote?: string;
+}
+
+export const COMFORT_OPTIONS: ComfortOption[] = [
   {
     id: 'windowButtons',
     title: 'Boutons réduire et agrandir',
-    problem: 'Sous GNOME, les fenêtres n’ont qu’un bouton fermer.',
+    problem: 'Sous GNOME, les fenêtres n’ont qu’un bouton fermer et cliquer sur une icône du dock ne réduit pas la fenêtre.',
+    only: ['GNOME'],
+    elseNote: 'Déjà le cas sur ce bureau.',
   },
   {
     id: 'numlock',
@@ -60,7 +72,28 @@ export const COMFORT_OPTIONS: { id: Comfort; title: string; problem: string }[] 
     title: 'Polices pour documents Word et Excel',
     problem: 'Sans polices compatibles, la mise en page des documents reçus se décale.',
   },
+  {
+    id: 'touchpad',
+    title: 'Pavé tactile comme sous Windows',
+    problem: 'Un simple toucher ne clique pas, et le clic droit se fait à deux doigts au lieu du coin inférieur droit.',
+    only: ['GNOME'],
+    elseNote: 'Sur ce bureau, réglez-le dans Paramètres, Pavé tactile.',
+  },
+  {
+    id: 'doubleClick',
+    title: 'Ouvrir les fichiers par double-clic',
+    problem: 'KDE peut ouvrir les fichiers au simple clic, ce qui déroute.',
+    only: ['KDE'],
+    elseNote: 'Déjà le cas sur ce bureau.',
+  },
+  {
+    id: 'dualBootClock',
+    title: 'Même heure que Windows (double démarrage)',
+    problem: 'Si Windows est aussi installé, son horloge se décale d’une ou deux heures après chaque passage par Linux.',
+  },
 ];
+
+export const isComfortAvailable = (c: ComfortOption, de: Desktop) => !c.only || c.only.includes(de);
 
 export const PERSONAS: { id: Persona; name: string; origin: string; description: string }[] = [
   {
@@ -99,7 +132,9 @@ export function personaProfile(persona: Persona, d: Detection): Profile {
         ...base, theme: 'light', wallpaper: null,
         dock: { position: 'bottom', iconSize: 'medium' },
         animations: 'reduced', shortcuts: 'windows',
-        comfort: ['windowButtons', 'numlock', 'codecs', 'officeFonts'],
+        comfort: COMFORT_OPTIONS.filter((c) => c.id !== 'dualBootClock' && isComfortAvailable(c, d.desktop)).map(
+          (c) => c.id,
+        ),
       };
     case 'aesthete':
       return {
@@ -140,7 +175,9 @@ export function randomProfile(d: Detection): Profile {
     animations,
     terminal: defaultTerminal(d.desktop),
     shortcuts: pick<Shortcuts>(['linux', 'windows', 'macos']),
-    comfort: COMFORT_OPTIONS.map((c) => c.id).filter(() => Math.random() < 0.5),
+    comfort: COMFORT_OPTIONS.filter(
+      (c) => c.id !== 'dualBootClock' && isComfortAvailable(c, d.desktop) && Math.random() < 0.5,
+    ).map((c) => c.id),
   };
 }
 
@@ -167,7 +204,8 @@ export function parseProfile(raw: unknown): Profile {
     oneOf(p.terminal, ['gnome-terminal', 'konsole', 'xfce4-terminal'] as const) &&
     oneOf(p.shortcuts, ['linux', 'windows', 'macos'] as const) &&
     Array.isArray(comfort) &&
-    comfort.every((c) => oneOf(c, ['windowButtons', 'numlock', 'codecs', 'officeFonts'] as const));
+    comfort.every((c) => COMFORT_OPTIONS.some((o) => o.id === c)) &&
+    new Set(comfort).size === comfort.length;
   if (!ok) throw new Error('Profil invalide ou d’une version inconnue.');
   return {
     schemaVersion: 2,

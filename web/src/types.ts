@@ -21,7 +21,14 @@ export type Animations = 'full' | 'reduced' | 'off';
 export type TerminalApp = 'gnome-terminal' | 'konsole' | 'xfce4-terminal';
 export type Shortcuts = 'linux' | 'windows' | 'macos';
 /** Irritants fréquents des personnes venant de Windows (schemaVersion 2). */
-export type Comfort = 'windowButtons' | 'numlock' | 'codecs' | 'officeFonts';
+export type Comfort =
+  | 'windowButtons'
+  | 'numlock'
+  | 'codecs'
+  | 'officeFonts'
+  | 'touchpad'
+  | 'doubleClick'
+  | 'dualBootClock';
 
 export interface Profile {
   schemaVersion: 2;

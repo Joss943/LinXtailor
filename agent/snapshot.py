@@ -22,6 +22,9 @@ GNOME_KEYS: list[tuple[str, str]] = [
     ("org.gnome.desktop.wm.preferences", "button-layout"),
     ("org.gnome.desktop.peripherals.keyboard", "remember-numlock-state"),
     ("org.gnome.desktop.peripherals.keyboard", "numlock-state"),
+    ("org.gnome.shell.extensions.dash-to-dock", "click-action"),
+    ("org.gnome.desktop.peripherals.touchpad", "tap-to-click"),
+    ("org.gnome.desktop.peripherals.touchpad", "click-method"),
 ]
 
 # Clés KDE (fichier, groupe, clé) modifiables par l'application.
@@ -33,6 +36,7 @@ KDE_KEYS: list[tuple[str, str, str]] = [
     ("kglobalshortcutsrc", "kwin", "Show Desktop"),
     ("kglobalshortcutsrc", "kwin", "Window Close"),
     ("kcminputrc", "Keyboard", "NumLock"),
+    ("kdeglobals", "KDE", "SingleClick"),
 ]
 
 XFCE_CHANNELS = ["xsettings", "xfce4-panel", "xfwm4", "xfce4-desktop", "xfce4-keyboard-shortcuts", "keyboards"]
@@ -53,6 +57,9 @@ def take(desktop: str, probe: Probe | None = None) -> Path:
     (folder / "meta.json").write_text(
         json.dumps({"desktop": desktop, "createdAt": stamp}), encoding="utf-8"
     )
+    ok, rtc = run_command("timedatectl show -p LocalRTC --value")
+    if ok and rtc in ("yes", "no"):
+        (folder / "system.json").write_text(json.dumps({"localRtc": rtc}), encoding="utf-8")
     if desktop == "GNOME":
         lines = []
         for schema, key in GNOME_KEYS:
@@ -136,6 +143,13 @@ def restore_commands(folder: Path, probe: Probe | None = None) -> list[str]:
                     )
             for prop in now.keys() - before.keys():
                 cmds.append(f"xfconf-query -c {channel} -p {shlex.quote(prop)} -r")
+    system = folder / "system.json"
+    if system.exists():
+        before = json.loads(system.read_text(encoding="utf-8")).get("localRtc")
+        ok, now = run_command("timedatectl show -p LocalRTC --value")
+        if before in ("yes", "no") and ok and now != before:
+            # Seulement si l'heure a changé : évite une demande de mot de passe inutile.
+            cmds.append(f"pkexec timedatectl set-local-rtc {1 if before == 'yes' else 0}")
     return cmds
 
 

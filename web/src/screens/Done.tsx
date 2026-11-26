@@ -1,12 +1,13 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, Download, Home, Rewind, Upload } from 'iconoir-react';
+import { CheckCircle, Download, Home, InfoCircle, Rewind, Upload } from 'iconoir-react';
 import { api } from '../api/client';
 import { useApp } from '../App';
 import { COMFORT_OPTIONS, LABELS, PERSONAS, WALLPAPERS, parseProfile } from '../profile';
+import { tipsFor } from '../tips';
 
 export default function Done() {
-  const { profile, setProfile, setDryrun, notify } = useApp();
+  const { detection, profile, setProfile, setDryrun, notify } = useApp();
   const navigate = useNavigate();
   const fileInput = useRef<HTMLInputElement>(null);
   const [restoring, setRestoring] = useState(false);
@@ -98,6 +99,21 @@ export default function Done() {
           <Home aria-hidden="true" /> Recommencer
         </button>
       </div>
+      {detection && (
+        <div className="border-t border-slate-200 pt-6">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <InfoCircle className="text-indigo-700" aria-hidden="true" /> Bon à savoir en arrivant de Windows
+          </h2>
+          <ul className="mt-3 space-y-3">
+            {tipsFor(detection).map((t) => (
+              <li key={t.title}>
+                <span className="block font-medium">{t.title}</span>
+                <span className="block text-sm text-slate-700">{t.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

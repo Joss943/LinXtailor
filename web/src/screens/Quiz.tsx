@@ -7,7 +7,7 @@ import {
 import type { Comfort, Profile } from '../types';
 import QuestionCard, { OptionButton } from '../components/QuestionCard';
 import { DesktopMock } from '../components/BeforeAfter';
-import { COMFORT_OPTIONS, LABELS, WALLPAPERS, isWeakMachine } from '../profile';
+import { COMFORT_OPTIONS, LABELS, WALLPAPERS, isComfortAvailable, isWeakMachine } from '../profile';
 import { useApp } from '../App';
 
 export const QUIZ_STEPS = 6;
@@ -139,22 +139,27 @@ export default function Quiz() {
           hint="Les petits manques qui surprennent le plus après un passage à Linux. Cochez ceux à corriger."
           onSkip={() => { update({ comfort: [] }); next(); }}>
           <div className="grid gap-2 sm:grid-cols-2">
-            {COMFORT_OPTIONS.map((c) => (
-              <label key={c.id}
-                className={`flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3 focus-within:ring-2 focus-within:ring-indigo-600 ${
-                  p.comfort.includes(c.id) ? 'border-indigo-700 bg-indigo-50' : 'border-slate-200 bg-white'
-                }`}>
-                <input type="checkbox" className="mt-1 h-4 w-4 accent-indigo-700"
-                  checked={p.comfort.includes(c.id)} onChange={() => toggle(c.id)} />
-                <span>
-                  <span className="block font-medium">{c.title}</span>
-                  <span className="block text-sm text-slate-700">{c.problem}</span>
-                  {c.id === 'windowButtons' && d.desktop !== 'GNOME' && (
-                    <span className="block text-sm text-slate-700">Déjà présents sur {d.desktop}.</span>
-                  )}
-                </span>
-              </label>
-            ))}
+            {COMFORT_OPTIONS.map((c) => {
+              const available = isComfortAvailable(c, d.desktop);
+              const checked = available && p.comfort.includes(c.id);
+              return (
+                <label key={c.id}
+                  className={`flex items-start gap-3 rounded-lg border-2 p-3 focus-within:ring-2 focus-within:ring-indigo-600 ${
+                    !available ? 'cursor-not-allowed border-slate-200 bg-slate-100'
+                      : checked ? 'cursor-pointer border-indigo-700 bg-indigo-50' : 'cursor-pointer border-slate-200 bg-white'
+                  }`}>
+                  <input type="checkbox" className="mt-1 h-4 w-4 accent-indigo-700" disabled={!available}
+                    checked={checked} onChange={() => toggle(c.id)} />
+                  <span>
+                    <span className="block font-medium">{c.title}</span>
+                    <span className="block text-sm text-slate-700">{c.problem}</span>
+                    {!available && c.elseNote && (
+                      <span className="mt-1 block text-sm font-medium text-slate-800">{c.elseNote}</span>
+                    )}
+                  </span>
+                </label>
+              );
+            })}
           </div>
         </QuestionCard>
       );
