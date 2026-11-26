@@ -1,6 +1,6 @@
 import type {
   Animations, AppId, Comfort, Desktop, Detection, DockPosition, IconSize, Persona, Profile,
-  Shortcuts, TerminalApp, Theme, WallpaperFile, ExtensionId,
+  Shortcuts, TerminalApp, Theme, WallpaperFile, ExtensionId, Essential,
 } from './types';
 
 export const isWeakMachine = (d: Detection) => d.ramGb < 4 || d.gpu === 'unknown';
@@ -140,6 +140,21 @@ export const EXTENSION_OPTIONS: ExtensionOption[] = [
   { id: 'caffeine', name: 'Empêcher la mise en veille', problem: 'Un clic pour garder l’écran allumé pendant un film ou une présentation.' },
 ];
 
+export interface EssentialOption {
+  id: Essential;
+  title: string;
+  problem: string;
+}
+
+/** Top 5 des manques constatés juste après l'installation. */
+export const ESSENTIAL_OPTIONS: EssentialOption[] = [
+  { id: 'archives', title: 'Ouvrir les .zip, .rar et .7z', problem: 'Sans ces outils, les archives .rar et .7z reçues par mail ou téléchargées ne s’ouvrent pas.' },
+  { id: 'firmware', title: 'Pilotes Wi-Fi, Bluetooth et graphiques', problem: 'Certains Wi-Fi ou Bluetooth ne marchent qu’avec ces pilotes non libres. Ils sont conservés si vous annulez.' },
+  { id: 'firewall', title: 'Pare-feu activé', problem: 'Windows active son pare-feu d’office ; ici, il faut le faire. Bloque les connexions entrantes.' },
+  { id: 'autoUpdates', title: 'Mises à jour automatiques', problem: 'Les correctifs de sécurité s’installent seuls chaque jour, comme Windows Update.' },
+  { id: 'backup', title: 'Points de restauration (Timeshift)', problem: 'L’équivalent de la restauration système : revenir en arrière après une mise à jour ratée.' },
+];
+
 export const PERSONAS: { id: Persona; name: string; origin: string; description: string }[] = [
   {
     id: 'migrator',
@@ -171,7 +186,10 @@ export function personaProfile(persona: Persona, d: Detection): Profile {
   const weak = isWeakMachine(d);
   const terminal = defaultTerminal(d.desktop);
   const gnome = d.desktop === 'GNOME';
-  const base = { schemaVersion: 3 as const, persona, terminal, apps: [] as AppId[], extensions: [] as ExtensionId[] };
+  const base = {
+    schemaVersion: 4 as const, persona, terminal, apps: [] as AppId[], extensions: [] as ExtensionId[],
+    essentials: [] as Essential[],
+  };
   switch (persona) {
     case 'migrator':
       return {
@@ -183,6 +201,7 @@ export function personaProfile(persona: Persona, d: Detection): Profile {
         ),
         apps: ['onlyoffice', 'vlc'],
         extensions: gnome ? ['taskbar', 'startMenu', 'trayIcons', 'clipboard', 'desktopIcons'] : [],
+        essentials: ESSENTIAL_OPTIONS.map((e) => e.id),
       };
     case 'aesthete':
       return {
@@ -190,6 +209,7 @@ export function personaProfile(persona: Persona, d: Detection): Profile {
         dock: { position: 'bottom', iconSize: 'large' },
         animations: weak ? 'reduced' : 'full', shortcuts: 'macos', comfort: ['codecs'],
         extensions: gnome ? ['trayIcons', 'clipboard'] : [],
+        essentials: ['archives', 'firewall', 'autoUpdates', 'backup'],
       };
     case 'tinkerer':
       return {
@@ -203,6 +223,7 @@ export function personaProfile(persona: Persona, d: Detection): Profile {
         ...base, theme: 'auto', wallpaper: null,
         dock: { position: 'left', iconSize: 'small' },
         animations: 'off', shortcuts: 'linux', comfort: [],
+        essentials: ['firewall', 'autoUpdates'],
       };
   }
 }
@@ -214,7 +235,7 @@ export function randomProfile(d: Detection): Profile {
   const persona = pick<Persona>(['migrator', 'aesthete', 'tinkerer', 'minimalist']);
   const animations = pick<Animations>(isWeakMachine(d) ? ['reduced', 'off'] : ['full', 'reduced', 'off']);
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     persona,
     theme: pick<Theme>(['light', 'dark', 'auto']),
     wallpaper: pick<WallpaperFile | null>([null, 'aurore.jpg', 'vague.jpg', 'nuit.jpg']),
@@ -230,6 +251,7 @@ export function randomProfile(d: Detection): Profile {
     ).map((c) => c.id),
     apps: [],
     extensions: d.desktop === 'GNOME' ? EXTENSION_OPTIONS.filter(() => Math.random() < 0.3).map((e) => e.id) : [],
+    essentials: ESSENTIAL_OPTIONS.filter(() => Math.random() < 0.6).map((e) => e.id),
   };
 }
 
@@ -238,18 +260,21 @@ export function randomProfile(d: Detection): Profile {
 const oneOf = <T extends string>(v: unknown, allowed: readonly T[]): v is T =>
   typeof v === 'string' && (allowed as readonly string[]).includes(v);
 
-/** Valide un profil importé ; migre les schemaVersion 1 et 2 vers 3. */
+/** Valide un profil importé ; migre les schemaVersion 1 à 3 vers 4. */
 export function parseProfile(raw: unknown): Profile {
   if (typeof raw !== 'object' || raw === null) throw new Error('Le fichier ne contient pas un profil.');
   const p = raw as Record<string, unknown>;
   const dock = p.dock as Record<string, unknown> | undefined;
   const comfort = p.schemaVersion === 1 ? [] : p.comfort;
-  const apps = p.schemaVersion === 3 ? p.apps : [];
-  const extensions = p.schemaVersion === 3 ? p.extensions : [];
+  const v = typeof p.schemaVersion === 'number' ? p.schemaVersion : 0;
+  const apps = v >= 3 ? p.apps : [];
+  const extensions = v >= 3 ? p.extensions : [];
+  const essentials = v >= 4 ? (p.essentials ?? []) : [];
   const validList = (v: unknown, ids: readonly string[]): v is string[] =>
     Array.isArray(v) && v.every((x) => ids.includes(x as string)) && new Set(v).size === v.length;
   const ok =
-    (p.schemaVersion === 1 || p.schemaVersion === 2 || p.schemaVersion === 3) &&
+    [1, 2, 3, 4].includes(v) &&
+    validList(essentials, ESSENTIAL_OPTIONS.map((e) => e.id)) &&
     validList(apps, APP_OPTIONS.map((a) => a.id)) &&
     validList(extensions, EXTENSION_OPTIONS.map((e) => e.id)) &&
     oneOf(p.persona, ['migrator', 'aesthete', 'tinkerer', 'minimalist'] as const) &&
@@ -266,7 +291,7 @@ export function parseProfile(raw: unknown): Profile {
     new Set(comfort).size === comfort.length;
   if (!ok) throw new Error('Profil invalide ou d’une version inconnue.');
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     persona: p.persona as Persona,
     theme: p.theme as Theme,
     wallpaper: p.wallpaper as WallpaperFile | null,
@@ -277,6 +302,7 @@ export function parseProfile(raw: unknown): Profile {
     comfort: comfort as Comfort[],
     apps: apps as AppId[],
     extensions: extensions as ExtensionId[],
+    essentials: essentials as Essential[],
   };
 }
 

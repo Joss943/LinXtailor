@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Laptop, NavArrowRight, Packages, Palette, Puzzle, Search, ShieldCheck, ShortcutSquare, Spark,
+  Laptop, NavArrowRight, Packages, Palette, Puzzle, Search, ShieldCheck, ShortcutSquare, Spark, Tools,
 } from 'iconoir-react';
 import { useApp } from '../App';
 import CheckCard from '../components/CheckCard';
 import { DesktopMock, profileMock } from '../components/BeforeAfter';
 import {
-  APP_OPTIONS, COMFORT_OPTIONS, EXTENSION_OPTIONS, LABELS, PERSONAS, WALLPAPERS,
+  APP_OPTIONS, COMFORT_OPTIONS, ESSENTIAL_OPTIONS, EXTENSION_OPTIONS, LABELS, PERSONAS, WALLPAPERS,
   isComfortAvailable, isWeakMachine,
 } from '../profile';
 import type { Profile } from '../types';
@@ -95,6 +95,7 @@ export default function Customize() {
 
   const nav = [
     { id: 'apparence', label: 'Apparence' },
+    { id: 'essentiels', label: 'Essentiels' },
     { id: 'habitudes', label: 'Habitudes Windows' },
     { id: 'logiciels', label: 'Logiciels' },
     { id: 'extensions', label: 'Extensions' },
@@ -172,6 +173,16 @@ export default function Customize() {
             choices={(['gnome-terminal', 'konsole', 'xfce4-terminal'] as const).map((t) => ({ value: t, label: LABELS.terminal[t] }))} />
         </Section>
 
+        <Section id="essentiels" icon={<Tools />} title="Essentiels de première installation"
+          intro="Le top 5 de ce qui manque juste après l’installation. Demande le mot de passe administrateur.">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {ESSENTIAL_OPTIONS.map((e) => (
+              <CheckCard key={e.id} checked={p.essentials.includes(e.id)} title={e.title} description={e.problem}
+                onChange={() => update({ essentials: toggle(p.essentials, e.id) })} />
+            ))}
+          </div>
+        </Section>
+
         <Section id="habitudes" icon={<Laptop />} title="Habitudes Windows"
           intro="Les petits manques qui surprennent le plus après un passage à Linux.">
           <div className="grid gap-2 sm:grid-cols-2">
@@ -239,6 +250,7 @@ export default function Customize() {
           <dl className="grid grid-cols-[1fr,auto] gap-y-1 text-sm">
             <dt className="text-slate-700">Profil</dt>
             <dd className="font-medium">{PERSONAS.find((x) => x.id === p.persona)!.name}</dd>
+            <dt className="text-slate-700">Essentiels</dt><dd className="font-medium">{p.essentials.length}</dd>
             <dt className="text-slate-700">Habitudes corrigées</dt><dd className="font-medium">{comfortCount}</dd>
             <dt className="text-slate-700">Logiciels</dt><dd className="font-medium">{p.apps.length}</dd>
             <dt className="text-slate-700">Extensions</dt><dd className="font-medium">{extensionCount}</dd>

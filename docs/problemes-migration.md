@@ -11,6 +11,18 @@ Légende : ✅ corrigé automatiquement · 💡 conseil dans l’application · 
 
 ---
 
+## Top 5 des problèmes de première installation
+
+| Constat | Pourquoi | Solution | LinXtailor |
+|---|---|---|---|
+| Les archives .rar ou .7z ne s’ouvrent pas | Formats non libres, outils absents par défaut | Fedora : unzip, p7zip, unar. Ubuntu : p7zip-full, p7zip-rar (multiverse). Debian : p7zip-full, unrar-free | ✅ essentiel « Archives » |
+| Pas de Wi-Fi ou de Bluetooth | Le pilote de la carte est non libre | Ubuntu, Fedora : linux-firmware. Debian : firmware-linux-nonfree (dépôt non-free-firmware) | ✅ essentiel « Pilotes » |
+| Aucun pare-feu actif | Ubuntu et Debian livrent ufw désactivé ou absent | `sudo ufw enable` ; Fedora : firewalld | ✅ essentiel « Pare-feu » |
+| Les mises à jour attendent qu’on les lance | Pas d’équivalent de Windows Update activé partout | Debian, Ubuntu : unattended-upgrades. Fedora : dnf5-automatic | ✅ essentiel « Mises à jour automatiques » |
+| Pas de restauration système | Rien de tel installé par défaut | Timeshift (instantanés avant mise à jour) | ✅ essentiel « Points de restauration » |
+
+---
+
 ## 1. Bureau et fenêtres
 
 | Problème | Pourquoi | Solution | LinXtailor |

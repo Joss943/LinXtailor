@@ -26,7 +26,9 @@ COMFORT = (
     "windowButtons", "numlock", "codecs", "officeFonts",
     "touchpad", "doubleClick", "dualBootClock",
 )
-SCHEMA_VERSIONS = (1, 2, 3)
+SCHEMA_VERSIONS = (1, 2, 3, 4)
+# Les 5 essentiels de première installation (schemaVersion 4).
+ESSENTIALS = ("archives", "firmware", "firewall", "autoUpdates", "backup")
 
 # Logiciels Windows -> équivalent Linux sur Flathub (schemaVersion 3).
 # id : (identifiant Flathub, nom, logiciel Windows remplacé)
@@ -98,8 +100,10 @@ def validate_profile(p: object) -> list[str]:
 
     version = p.get("schemaVersion")
     if version not in SCHEMA_VERSIONS:
-        errors.append("schemaVersion doit valoir 1, 2 ou 3")
-    for key, allowed, since in (("apps", APPS, 3), ("extensions", EXTENSIONS, 3)):
+        errors.append("schemaVersion doit valoir 1, 2, 3 ou 4")
+    for key, allowed, since in (
+        ("apps", APPS, 3), ("extensions", EXTENSIONS, 3), ("essentials", ESSENTIALS, 4)
+    ):
         values = p.get(key, [])
         if key in p and isinstance(version, int) and version < since:
             errors.append(f"{key} n'existe qu'à partir de schemaVersion {since}")
@@ -131,6 +135,7 @@ def validate_profile(p: object) -> list[str]:
     allowed_keys = {
         "schemaVersion", "persona", "theme", "wallpaper",
         "dock", "animations", "terminal", "shortcuts", "comfort", "apps", "extensions",
+        "essentials",
     }
     extra = set(p) - allowed_keys
     if extra:
@@ -170,7 +175,8 @@ class Probe:
     """Accès au système, remplaçable dans les tests."""
 
     which: Callable[[str], str | None] = shutil.which
-    universe_enabled: Callable[[], bool] = lambda: _ubuntu_universe_enabled()
+    universe_enabled: Callable[[], bool] = lambda: _apt_component_enabled("universe")
+    component_enabled: Callable[[str], bool] = lambda c: _apt_component_enabled(c)
     path_exists: Callable[[str], bool] = lambda p: Path(p).exists()
     package_installed: Callable[[str, str], bool] = lambda os_id, pkg: _package_installed(os_id, pkg)
     flathub_enabled: Callable[[], bool] = lambda: "flathub" in _out(["flatpak", "remotes", "--user", "--columns=name"])
@@ -207,7 +213,8 @@ def _package_installed(os_id: str, pkg: str) -> bool:
 DASH_TO_DOCK_DIR = "/usr/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com"
 
 
-def _ubuntu_universe_enabled() -> bool:
+def _apt_component_enabled(component: str) -> bool:
+    """Vrai si un composant APT (universe, multiverse, non-free-firmware…) est actif."""
     paths = [Path("/etc/apt/sources.list")]
     d = Path("/etc/apt/sources.list.d")
     if d.is_dir():
@@ -216,9 +223,7 @@ def _ubuntu_universe_enabled() -> bool:
         try:
             for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
                 line = line.strip()
-                if line and not line.startswith("#") and "universe" in line.split():
-                    return True
-                if line.startswith("Components:") and "universe" in line.split():
+                if line and not line.startswith("#") and component in line.split():
                     return True
         except OSError:
             continue
@@ -250,7 +255,24 @@ PACKAGE_REPOS: dict[tuple[str, str], str] = {
     ("ubuntu", "xfce4-terminal"): "universe",
     ("ubuntu", "gstreamer1.0-libav"): "universe",
     ("fedora", "gstreamer1-plugin-libav"): "rpmfusion",
+    ("ubuntu", "p7zip-full"): "universe",
+    ("ubuntu", "p7zip-rar"): "multiverse",
+    ("ubuntu", "timeshift"): "universe",
+    ("debian", "firmware-linux-nonfree"): "non-free-firmware",
 }
+# Essentiels : ouvrir les archives .zip, .rar, .7z…
+ARCHIVE_PACKAGES = {
+    "fedora": ["unzip", "p7zip", "p7zip-plugins", "unar"],
+    "ubuntu": ["unzip", "p7zip-full", "p7zip-rar"],
+    "debian": ["unzip", "p7zip-full", "unrar-free"],
+}
+# Essentiels : pilotes non libres (Wi-Fi, Bluetooth, cartes graphiques).
+FIRMWARE_PACKAGES = {
+    "fedora": ["linux-firmware"],
+    "ubuntu": ["linux-firmware"],
+    "debian": ["firmware-linux-nonfree"],
+}
+DNF_AUTOMATIC_CONF = "/etc/dnf/automatic.conf"
 RPMFUSION_REPO_FILE = "/etc/yum.repos.d/rpmfusion-free.repo"
 CODEC_PACKAGES = {
     "fedora": ["gstreamer1-plugin-libav", "gstreamer1-plugins-ugly"],
@@ -266,6 +288,8 @@ FONT_PACKAGES = {
 REPO_COMMANDS = {
     "universe": "pkexec add-apt-repository -y universe",
     "contrib": "pkexec apt-add-repository -y contrib",
+    "multiverse": "pkexec add-apt-repository -y multiverse",
+    "non-free-firmware": "pkexec apt-add-repository -y non-free-firmware",
     "rpmfusion": "pkexec dnf install -y "
     "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm",
 }
@@ -275,6 +299,7 @@ DASH_TO_DOCK_PACKAGE = {
 }
 SUDO_REASON_PKG = "droits administrateur requis (pkexec) pour installer un paquet système"
 SUDO_REASON_REPO = "droits administrateur requis (pkexec) pour activer un dépôt de paquets"
+SUDO_REASON_SYS = "droits administrateur requis (pkexec) pour modifier un réglage du système"
 
 
 def install_command(os_id: str, packages: list[str]) -> str:
@@ -303,7 +328,7 @@ def build_actions(profile: dict, detection: dict, probe: Probe | None = None) ->
     def add(desc: str, cmd: str, risk: str = "none", **extra: object) -> None:
         out.append((desc, cmd, risk, extra))
 
-    def ensure_packages(pkgs: list[str], label: str) -> None:
+    def ensure_packages(pkgs: list[str], label: str, track: bool = True) -> None:
         missing = [p for p in pkgs if not probe.package_installed(os_id, p)]
         if not missing:
             return
@@ -312,6 +337,8 @@ def build_actions(profile: dict, detection: dict, probe: Probe | None = None) ->
             if repo == "universe" and probe.universe_enabled():
                 continue
             if repo == "rpmfusion" and probe.path_exists(RPMFUSION_REPO_FILE):
+                continue
+            if repo in ("multiverse", "non-free-firmware") and probe.component_enabled(repo):
                 continue
             add(
                 f"Activer le dépôt {repo} (requis pour {label}) — {SUDO_REASON_REPO}",
@@ -322,7 +349,7 @@ def build_actions(profile: dict, detection: dict, probe: Probe | None = None) ->
             f"Installer {label} — {SUDO_REASON_PKG}",
             install_command(os_id, missing),
             "package-install",
-            packages=missing,
+            packages=missing if track else [],
         )
 
     kw = kwrite(probe)
@@ -537,6 +564,54 @@ def build_actions(profile: dict, detection: dict, probe: Probe | None = None) ->
             "Garder la même heure que Windows en double démarrage — "
             "droits administrateur requis (pkexec) pour régler l'horloge matérielle",
             "pkexec timedatectl set-local-rtc 1",
+        )
+
+    # --- Essentiels de première installation (système, via pkexec) --------
+    essentials = profile.get("essentials", [])
+    if "archives" in essentials:
+        ensure_packages(ARCHIVE_PACKAGES[os_id], "la prise en charge des archives .zip, .rar et .7z")
+    if "firmware" in essentials:
+        ensure_packages(
+            FIRMWARE_PACKAGES[os_id],
+            "les pilotes non libres (Wi-Fi, Bluetooth, carte graphique), conservés si vous annulez",
+            track=False,  # les retirer pourrait couper le Wi-Fi
+        )
+    if "firewall" in essentials:
+        if os_id == "fedora":
+            ensure_packages(["firewalld"], "le pare-feu firewalld")
+            add(
+                f"Activer le pare-feu au démarrage — {SUDO_REASON_SYS}",
+                "pkexec systemctl enable --now firewalld",
+            )
+        else:
+            ensure_packages(["ufw"], "le pare-feu ufw")
+            add(
+                "Activer le pare-feu : connexions entrantes bloquées, sortantes autorisées — "
+                f"{SUDO_REASON_SYS}",
+                "pkexec ufw enable",
+            )
+    if "autoUpdates" in essentials:
+        if os_id == "fedora":
+            ensure_packages(["dnf5-plugin-automatic"], "les mises à jour automatiques")
+            add(
+                f"Installer les mises à jour automatiquement chaque jour — {SUDO_REASON_SYS}",
+                f"pkexec sh -c '[ -e {DNF_AUTOMATIC_CONF} ] || "
+                f"printf \"[commands]\\napply_updates = yes\\n\" > {DNF_AUTOMATIC_CONF}; "
+                "systemctl enable --now dnf5-automatic.timer'",
+            )
+        else:
+            ensure_packages(["unattended-upgrades"], "les mises à jour automatiques")
+            add(
+                f"Installer les mises à jour de sécurité automatiquement — {SUDO_REASON_SYS}",
+                "pkexec sh -c 'echo \"unattended-upgrades unattended-upgrades/enable_auto_updates"
+                " boolean true\" | debconf-set-selections"
+                " && dpkg-reconfigure -f noninteractive unattended-upgrades'",
+            )
+    if "backup" in essentials:
+        ensure_packages(
+            ["timeshift"],
+            "Timeshift, pour revenir en arrière après une mise à jour ratée "
+            "(ouvrez-le ensuite pour choisir le disque des sauvegardes)",
         )
 
     # --- Logiciels (Flathub, pour l'utilisateur, sans mot de passe) ---------

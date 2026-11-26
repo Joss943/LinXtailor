@@ -37,8 +37,11 @@ export type AppId =
 export type ExtensionId =
   | 'trayIcons' | 'taskbar' | 'startMenu' | 'clipboard' | 'desktopIcons' | 'phone' | 'caffeine';
 
+/** Les 5 essentiels de première installation (schemaVersion 4). */
+export type Essential = 'archives' | 'firmware' | 'firewall' | 'autoUpdates' | 'backup';
+
 export interface Profile {
-  schemaVersion: 3;
+  schemaVersion: 4;
   persona: Persona;
   theme: Theme;
   wallpaper: WallpaperFile | null;
@@ -49,6 +52,7 @@ export interface Profile {
   comfort: Comfort[];
   apps: AppId[];
   extensions: ExtensionId[];
+  essentials: Essential[];
 }
 
 export type Risk = 'none' | 'package-install' | 'repo-add';
