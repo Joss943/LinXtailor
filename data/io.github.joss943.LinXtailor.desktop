@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=LinXtailor
+GenericName=Personnalisation du bureau
+GenericName[en]=Desktop customization
+Comment=Un bureau Linux taillé pour vous : réglages, logiciels et habitudes de Windows
+Comment[en]=A Linux desktop tailored for you, especially if you come from Windows
+Exec=@BIN@/linxtailor
+Icon=io.github.joss943.LinXtailor
+Terminal=false
+Categories=Settings;DesktopSettings;
+Keywords=windows;migration;thème;dock;codecs;logiciels;bureau;personnalisation;
+StartupNotify=false

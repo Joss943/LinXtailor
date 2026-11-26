@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-# Installation de Desktop Tailor pour l'utilisateur courant (Fedora, Ubuntu, Debian).
-#   curl -fsSL https://raw.githubusercontent.com/Joss943/kinginlinux/main/install.sh | bash
+# Installation de LinXtailor pour l'utilisateur courant (Fedora, Ubuntu, Debian).
+#   curl -fsSL https://raw.githubusercontent.com/Joss943/LinXtailor/main/install.sh | bash
 #
-# Installe dans ~/.local/share/desktop-tailor, ajoute la commande « desktop-tailor »
-# et une entrée « Desktop Tailor » dans le menu des applications.
-# Variable facultative : DT_ARCHIVE=/chemin/desktop-tailor.tar.gz (archive locale).
+# Installe dans ~/.local/share/linxtailor, ajoute la commande « linxtailor »
+# et une entrée « LinXtailor » dans le menu des applications.
+# Variable facultative : DT_ARCHIVE=/chemin/linxtailor.tar.gz (archive locale).
 set -euo pipefail
 
-REPO="Joss943/kinginlinux"
-URL="https://github.com/${REPO}/releases/latest/download/desktop-tailor.tar.gz"
-DEST="${HOME}/.local/share/desktop-tailor"
+REPO="Joss943/LinXtailor"
+URL="https://github.com/${REPO}/releases/latest/download/linxtailor.tar.gz"
+DEST="${HOME}/.local/share/linxtailor"
 BIN="${HOME}/.local/bin"
 APPS="${HOME}/.local/share/applications"
+ICONS="${HOME}/.local/share/icons/hicolor/scalable/apps"
+APP_ID="io.github.joss943.LinXtailor"
 
 info() { printf '\033[1m==>\033[0m %s\n' "$*"; }
 fail() { printf '\033[31mErreur :\033[0m %s\n' "$*" >&2; exit 1; }
@@ -58,6 +60,7 @@ else
   curl -fsSL "$URL" | tar -xz -C "${DEST}.new" --strip-components=1
 fi
 [ -f "${DEST}.new/agent/server.py" ] && [ -f "${DEST}.new/web/index.html" ] \
+  && [ -f "${DEST}.new/data/${APP_ID}.desktop" ] \
   || fail "archive incomplète."
 
 info "Préparation de l'environnement Python"
@@ -67,13 +70,20 @@ python3 -m venv "${DEST}.new/.venv"
 rm -rf "$DEST"
 mv "${DEST}.new" "$DEST"
 
+# Ancienne installation sous le nom « Desktop Tailor » (v1.0.0).
+if [ -d "${HOME}/.local/share/desktop-tailor" ]; then
+  info "Suppression de l'ancienne version « Desktop Tailor »"
+  pkill -f "${HOME}/.local/share/desktop-tailor/" 2>/dev/null || true
+  rm -rf "${HOME}/.local/share/desktop-tailor" "$BIN/desktop-tailor" "$APPS/desktop-tailor.desktop"
+fi
+
 # --- Commande et entrée de menu -----------------------------------------------------
 mkdir -p "$BIN" "$APPS"
-cat > "$BIN/desktop-tailor" <<'LAUNCHER'
+cat > "$BIN/linxtailor" <<'LAUNCHER'
 #!/usr/bin/env bash
-# Lance Desktop Tailor : agent (127.0.0.1:7420) + interface (http://localhost:5173).
+# Lance LinXtailor : agent (127.0.0.1:7420) + interface (http://localhost:5173).
 set -u
-DIR="${HOME}/.local/share/desktop-tailor"
+DIR="${HOME}/.local/share/linxtailor"
 PY="$DIR/.venv/bin/python"
 UI="http://localhost:5173"
 
@@ -84,15 +94,17 @@ stop() {
 }
 
 case "${1:-}" in
-  --stop) stop; echo "Desktop Tailor est arrêté."; exit 0 ;;
+  --stop) stop; echo "LinXtailor est arrêté."; exit 0 ;;
   --uninstall)
     stop
-    rm -rf "$DIR" "${HOME}/.local/share/applications/desktop-tailor.desktop"
-    rm -f "${HOME}/.local/bin/desktop-tailor"
-    echo "Desktop Tailor est désinstallé. Vos sauvegardes restent dans ~/.config/desktop-tailor."
+    rm -rf "$DIR"
+    rm -f "${HOME}/.local/bin/linxtailor" \
+      "${HOME}/.local/share/applications/io.github.joss943.LinXtailor.desktop" \
+      "${HOME}/.local/share/icons/hicolor/scalable/apps/io.github.joss943.LinXtailor.svg"
+    echo "LinXtailor est désinstallé. Vos sauvegardes restent dans ~/.config/linxtailor."
     exit 0 ;;
   --help|-h)
-    echo "Usage : desktop-tailor [--stop | --uninstall]"; exit 0 ;;
+    echo "Usage : linxtailor [--stop | --uninstall]"; exit 0 ;;
 esac
 
 running() { curl -fs -o /dev/null "http://127.0.0.1:7420/health" 2>/dev/null; }
@@ -109,24 +121,19 @@ if ! running; then
   exit 1
 fi
 xdg-open "$UI" >/dev/null 2>&1 || echo "Ouvrez $UI dans votre navigateur."
-echo "Desktop Tailor tourne en arrière-plan. Pour l'arrêter : desktop-tailor --stop"
+echo "LinXtailor tourne en arrière-plan. Pour l'arrêter : linxtailor --stop"
 LAUNCHER
-chmod +x "$BIN/desktop-tailor"
+chmod +x "$BIN/linxtailor"
 
-cat > "$APPS/desktop-tailor.desktop" <<DESKTOP
-[Desktop Entry]
-Type=Application
-Name=Desktop Tailor
-Comment=Personnaliser son bureau Linux
-Exec=${BIN}/desktop-tailor
-Icon=preferences-desktop
-Terminal=false
-Categories=Settings;DesktopSettings;
-DESKTOP
+mkdir -p "$ICONS"
+cp "$DEST/data/${APP_ID}.svg" "$ICONS/${APP_ID}.svg"
+sed "s#@BIN@#${BIN}#" "$DEST/data/${APP_ID}.desktop" > "$APPS/${APP_ID}.desktop"
+update-desktop-database -q "$APPS" 2>/dev/null || true
+gtk-update-icon-cache -qtf "${HOME}/.local/share/icons/hicolor" 2>/dev/null || true
 
-info "Desktop Tailor est installé."
-echo "  • Menu des applications : « Desktop Tailor »"
-echo "  • Ou dans un terminal : desktop-tailor"
+info "LinXtailor est installé."
+echo "  • Menu des applications : « LinXtailor »"
+echo "  • Ou dans un terminal : linxtailor"
 case ":${PATH}:" in
   *":${BIN}:"*) ;;
   *) echo "  (Ouvrez un nouveau terminal pour que la commande soit reconnue.)" ;;

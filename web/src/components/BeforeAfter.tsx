@@ -7,6 +7,10 @@ export interface MockState {
   dock: DockPosition;
   iconSize: IconSize;
   windowButtons: boolean;
+  /** Barre des tâches pleine largeur avec menu Démarrer (extensions GNOME). */
+  taskbar?: boolean;
+  startMenu?: boolean;
+  desktopIcons?: boolean;
 }
 
 const ICON = { small: 6, medium: 8, large: 10 };
@@ -19,7 +23,7 @@ export function DesktopMock({ state, label }: { state: MockState; label: string 
   const id = `g-${label.replace(/\W/g, '')}-${state.wallpaper ?? 'none'}`;
   const s = ICON[state.iconSize];
   const n = 4;
-  const left = state.dock === 'left';
+  const left = !state.taskbar && state.dock === 'left';
   const bar = s + 6;
   const winX = left ? bar + 14 : 30;
   const fg = dark ? '#f8fafc' : '#334155';
@@ -45,7 +49,23 @@ export function DesktopMock({ state, label }: { state: MockState; label: string 
       <rect x={winX + 8} y="36" width="50" height="3" rx="1" fill={dark ? '#64748b' : '#94a3b8'} />
       <rect x={winX + 8} y="44" width="70" height="3" rx="1" fill={dark ? '#475569' : '#cbd5e1'} />
       <rect x={winX + 8} y="52" width="60" height="3" rx="1" fill={dark ? '#475569' : '#cbd5e1'} />
-      {left ? (
+      {state.desktopIcons && (
+        <g>
+          {[8, 24].map((y) => (
+            <rect key={y} x="146" y={y} width="8" height="9" rx="1.5" fill="#f8fafc" opacity="0.9" />
+          ))}
+        </g>
+      )}
+      {state.taskbar ? (
+        <g>
+          <rect x="0" y="90" width="160" height="10" fill="#0f172a" opacity="0.9" />
+          {state.startMenu && <rect x="3" y="92" width="6" height="6" rx="1" fill="#818cf8" />}
+          {Array.from({ length: n }, (_, i) => (
+            <rect key={i} x={14 + i * 9} y="92" width="6" height="6" rx="1" fill="#e2e8f0" />
+          ))}
+          <rect x="140" y="93.5" width="16" height="3" rx="1" fill="#e2e8f0" />
+        </g>
+      ) : left ? (
         <g>
           <rect x="0" y="0" width={bar} height="100" fill="#0f172a" opacity="0.8" />
           {Array.from({ length: n }, (_, i) => (
@@ -92,7 +112,11 @@ export function defaultMock(de: Desktop): MockState {
 }
 
 export function profileMock(p: Profile, de: Desktop): MockState {
+  const gnome = de === 'GNOME';
   return {
+    taskbar: gnome && p.extensions.includes('taskbar'),
+    startMenu: gnome && p.extensions.includes('startMenu'),
+    desktopIcons: gnome && p.extensions.includes('desktopIcons'),
     theme: p.theme === 'auto' ? 'light' : p.theme,
     wallpaper: p.wallpaper,
     dock: p.dock.position,

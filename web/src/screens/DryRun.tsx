@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Globe, Play, ShieldCheck, WarningTriangle, Xmark } from 'iconoir-react';
+import { EditPencil, Globe, Play, ShieldCheck, WarningTriangle, Xmark } from 'iconoir-react';
 import { api } from '../api/client';
 import { useApp } from '../App';
 import ActionList from '../components/ActionList';
@@ -64,7 +64,7 @@ export default function DryRun() {
                   <Globe aria-hidden="true" /> J’accepte le téléchargement du fond d’écran « {wallpaper.name} »
                 </span>
                 <span className="block text-sm text-slate-700">
-                  Seule connexion Internet de l’application, vers commons.wikimedia.org. {wallpaper.credit}.
+                  Téléchargement depuis commons.wikimedia.org. {wallpaper.credit}.
                 </span>
               </span>
             </label>
@@ -75,6 +75,9 @@ export default function DryRun() {
       <div className="flex flex-wrap gap-3">
         <button type="button" className="btn-primary" disabled={!canApply} onClick={() => navigate('/application')}>
           <Play aria-hidden="true" /> Appliquer
+        </button>
+        <button type="button" className="btn-secondary" onClick={() => navigate('/personnaliser')}>
+          <EditPencil aria-hidden="true" /> Modifier mes choix
         </button>
         <button type="button" className="btn-secondary" onClick={() => { setDryrun(null); navigate('/profil'); }}>
           <Xmark aria-hidden="true" /> Annuler

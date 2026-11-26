@@ -21,6 +21,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/desktop-tailor.tar.gz install.sh \
-            --title "Desktop Tailor $GITHUB_REF_NAME" \
+          gh release create "$GITHUB_REF_NAME" dist/linxtailor.tar.gz install.sh \
+            --title "LinXtailor $GITHUB_REF_NAME" \
             --notes "Installation : curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/install.sh | bash"

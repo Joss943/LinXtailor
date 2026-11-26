@@ -58,12 +58,17 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-def probe(installed=(), universe=False, paths=(), packages=()):
+def probe(installed=(), universe=False, paths=(), packages=(), flathub=False,
+          flatpaks=(), extensions=(), enabled=()):
     return executor.Probe(
         which=lambda n: f"/usr/bin/{n}" if n in installed else None,
         universe_enabled=lambda: universe,
         path_exists=lambda p: p in paths,
         package_installed=lambda os_id, pkg: pkg in packages,
+        flathub_enabled=lambda: flathub,
+        flatpak_installed=lambda app: app in flatpaks,
+        extension_installed=lambda uuid: uuid in extensions,
+        extension_enabled=lambda uuid: uuid in enabled,
     )
 
 
@@ -189,6 +194,57 @@ class MappingTests(unittest.TestCase):
         rtc = next(a for a in acts if "set-local-rtc" in a.command)
         self.assertIn("droits administrateur requis", rtc.description)
 
+    def test_apps_from_flathub(self):
+        v3 = {"schemaVersion": 3, "apps": ["gimp", "vlc", "steam"]}
+        acts = executor.build_actions({**PROFILE, **v3}, DETECTION,
+                                      probe(installed=["konsole"], universe=True, flatpaks=["org.videolan.VLC"]))
+        by_cmd = {a.command: a for a in acts}
+        self.assertEqual(by_cmd["pkexec apt install -y flatpak"].risk, "package-install")
+        self.assertEqual(by_cmd[executor.FLATHUB_ADD].risk, "repo-add")
+        self.assertNotIn("sudo", executor.FLATHUB_ADD)
+        gimp = by_cmd["flatpak install --user -y --noninteractive flathub org.gimp.GIMP"]
+        self.assertIn("remplace Photoshop", gimp.description)
+        self.assertEqual(gimp.flatpaks, ["org.gimp.GIMP"])
+        self.assertFalse(any("org.videolan.VLC" in c for c in by_cmd))  # déjà installé
+        # flatpak et Flathub déjà présents : seulement les installations
+        acts = executor.build_actions({**PROFILE, **v3}, DETECTION,
+                                      probe(installed=["konsole", "flatpak"], universe=True, flathub=True))
+        self.assertEqual([a.risk for a in acts if "flatpak" in a.command], ["package-install"] * 3)
+
+    def test_gnome_extensions(self):
+        v3 = {"schemaVersion": 3, "extensions": ["trayIcons", "taskbar", "clipboard"]}
+        acts = executor.build_actions({**PROFILE, **v3}, DETECTION, probe(
+            installed=["konsole"], universe=True,
+            extensions=["ubuntu-appindicators@ubuntu.com"], enabled=["ubuntu-appindicators@ubuntu.com"]))
+        cmds = [a.command for a in acts]
+        # Ubuntu fournit déjà les icônes de notification : rien à faire
+        self.assertFalse(any("appindicator" in c for c in cmds))
+        # la barre des tâches remplace le dock
+        self.assertFalse(any("dash-to-dock dock-position" in c for c in cmds))
+        self.assertTrue(any(c.startswith("gnome-extensions disable ubuntu-dock@ubuntu.com") for c in cmds))
+        acts2 = executor.build_actions({**PROFILE, **v3, "comfort": ["windowButtons"]}, DETECTION,
+                                       probe(installed=["konsole"], universe=True))
+        self.assertFalse(any("click-action" in a.command for a in acts2))
+        install = next(a for a in acts if "clipboard-indicator@tudmotu.com" in a.command)
+        self.assertIn("InstallRemoteExtension", install.command)
+        self.assertIn("GNOME vous demandera de confirmer", install.description)
+        self.assertEqual(install.extensions, ["clipboard-indicator@tudmotu.com"])
+        # installée mais désactivée : simple activation
+        acts = executor.build_actions({**PROFILE, "schemaVersion": 3, "extensions": ["clipboard"]}, DETECTION,
+                                      probe(installed=["konsole"], extensions=["clipboard-indicator@tudmotu.com"]))
+        self.assertIn("gnome-extensions enable clipboard-indicator@tudmotu.com", [a.command for a in acts])
+        # KDE : pas d'extensions GNOME
+        acts = executor.build_actions({**PROFILE, **v3}, {**DETECTION, "desktop": "KDE"},
+                                      probe(installed=["konsole"]))
+        self.assertFalse(any("gnome-extensions" in a.command or "gdbus" in a.command for a in acts))
+
+    def test_validation_v3(self):
+        self.assertEqual(executor.validate_profile(
+            {**PROFILE, "schemaVersion": 3, "comfort": [], "apps": ["gimp"], "extensions": ["clipboard"]}), [])
+        self.assertTrue(executor.validate_profile({**PROFILE, "schemaVersion": 2, "apps": ["gimp"]}))
+        self.assertTrue(executor.validate_profile({**PROFILE, "schemaVersion": 3, "apps": ["photoshop"]}))
+        self.assertTrue(executor.validate_profile({**PROFILE, "schemaVersion": 3, "extensions": ["x"]}))
+
     def test_validation(self):
         self.assertEqual(executor.validate_profile({**PROFILE, "schemaVersion": 2, "comfort": ["codecs"]}), [])
         self.assertTrue(executor.validate_profile({**PROFILE, "comfort": ["codecs"]}))
@@ -282,7 +338,7 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(all(l["status"] == "ok" for l in lines))
         # jeton à usage unique
         self.assertEqual(self.call("POST", "/apply", {"profile": PROFILE, "token": dry["token"]})[0], 403)
-        cfg = Path(HOME) / ".config" / "desktop-tailor"
+        cfg = Path(HOME) / ".config" / "linxtailor"
         snap = snapshot.latest()
         self.assertIsNotNone(snap)
         self.assertTrue((snap / "gsettings.txt").exists())
@@ -325,10 +381,34 @@ class ServerTests(unittest.TestCase):
         finally:
             snapshot.run_command = original
 
+    def test_legacy_config_dir_is_migrated(self):
+        home = Path(tempfile.mkdtemp(prefix="dt-legacy-"))
+        (home / ".config" / "desktop-tailor").mkdir(parents=True)
+        (home / ".config" / "desktop-tailor" / "history.json").write_text("[]", encoding="utf-8")
+        original = Path.home
+        Path.home = classmethod(lambda cls: home)  # type: ignore[method-assign]
+        try:
+            self.assertEqual(executor.config_dir(), home / ".config" / "linxtailor")
+        finally:
+            Path.home = original  # type: ignore[method-assign]
+        self.assertTrue((home / ".config" / "linxtailor" / "history.json").exists())
+        self.assertFalse((home / ".config" / "desktop-tailor").exists())
+
+    def test_rollback_uninstalls_flatpaks_and_extensions(self):
+        executor.record_installed(["org.gimp.GIMP"], "installed-flatpaks.txt")
+        executor.record_installed(["clipboard-indicator@tudmotu.com"], "installed-extensions.txt")
+        COMMANDS.clear()
+        self.assertTrue(snapshot.rollback("ubuntu"))
+        self.assertIn("flatpak uninstall --user -y --noninteractive org.gimp.GIMP", COMMANDS)
+        self.assertIn("gnome-extensions uninstall clipboard-indicator@tudmotu.com", COMMANDS)
+        cfg = Path(HOME) / ".config" / "linxtailor"
+        self.assertFalse((cfg / "installed-flatpaks.txt").exists())
+        self.assertFalse((cfg / "installed-extensions.txt").exists())
+
     def test_history_keeps_five(self):
         for _ in range(7):
             snapshot.add_history(PROFILE)
-        cfg = Path(HOME) / ".config" / "desktop-tailor"
+        cfg = Path(HOME) / ".config" / "linxtailor"
         self.assertEqual(len(json.loads((cfg / "history.json").read_text(encoding="utf-8"))), 5)
 
 

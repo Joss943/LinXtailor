@@ -26,7 +26,46 @@ COMFORT = (
     "windowButtons", "numlock", "codecs", "officeFonts",
     "touchpad", "doubleClick", "dualBootClock",
 )
-SCHEMA_VERSIONS = (1, 2)
+SCHEMA_VERSIONS = (1, 2, 3)
+
+# Logiciels Windows -> équivalent Linux sur Flathub (schemaVersion 3).
+# id : (identifiant Flathub, nom, logiciel Windows remplacé)
+APPS: dict[str, tuple[str, str, str]] = {
+    "onlyoffice": ("org.onlyoffice.desktopeditors", "ONLYOFFICE", "Microsoft Office"),
+    "chrome": ("com.google.Chrome", "Google Chrome", "Google Chrome"),
+    "vlc": ("org.videolan.VLC", "VLC", "le Lecteur multimédia"),
+    "gimp": ("org.gimp.GIMP", "GIMP", "Photoshop"),
+    "pinta": ("com.github.PintaProject.Pinta", "Pinta", "Paint"),
+    "inkscape": ("org.inkscape.Inkscape", "Inkscape", "Illustrator"),
+    "kdenlive": ("org.kde.kdenlive", "Kdenlive", "Premiere ou Clipchamp"),
+    "obs": ("com.obsproject.Studio", "OBS Studio", "OBS Studio"),
+    "vscode": ("com.visualstudio.code", "Visual Studio Code", "Notepad++ ou VS Code"),
+    "peazip": ("io.github.peazip.PeaZip", "PeaZip", "7-Zip ou WinRAR"),
+    "thunderbird": ("org.mozilla.Thunderbird", "Thunderbird", "Outlook"),
+    "discord": ("com.discordapp.Discord", "Discord", "Discord"),
+    "spotify": ("com.spotify.Client", "Spotify", "Spotify"),
+    "zoom": ("us.zoom.Zoom", "Zoom", "Zoom"),
+    "steam": ("com.valvesoftware.Steam", "Steam", "Steam"),
+    "heroic": ("com.heroicgameslauncher.hgl", "Heroic", "Epic Games et GOG"),
+}
+FLATHUB_ADD = (
+    "flatpak remote-add --user --if-not-exists flathub "
+    "https://dl.flathub.org/repo/flathub.flatpakrepo"
+)
+
+# Extensions GNOME (extensions.gnome.org) qui comblent un manque ressenti en venant de Windows.
+# id : (uuid, nom, autres uuid équivalents déjà fournis par la distribution)
+EXTENSIONS: dict[str, tuple[str, str, tuple[str, ...]]] = {
+    "trayIcons": ("appindicatorsupport@rgcjonas.gmail.com", "Icônes de la zone de notification",
+                  ("ubuntu-appindicators@ubuntu.com",)),
+    "taskbar": ("dash-to-panel@jderose9.github.com", "Barre des tâches façon Windows", ()),
+    "startMenu": ("arcmenu@arcmenu.com", "Menu Démarrer", ()),
+    "clipboard": ("clipboard-indicator@tudmotu.com", "Historique du presse-papiers", ()),
+    "desktopIcons": ("ding@rastersoft.com", "Icônes sur le bureau", ()),
+    "phone": ("gsconnect@andyholmes.github.io", "Lien avec le téléphone", ()),
+    "caffeine": ("caffeine@patapon.info", "Empêcher la mise en veille", ()),
+}
+DOCK_UUIDS = ("ubuntu-dock@ubuntu.com", "dash-to-dock@micxgx.gmail.com")
 
 # Fonds d'écran du domaine public (Wikimedia Commons, Special:FilePath).
 WALLPAPERS: dict[str, str] = {
@@ -40,7 +79,11 @@ WALLPAPERS: dict[str, str] = {
 
 
 def config_dir() -> Path:
-    return Path.home() / ".config" / "desktop-tailor"
+    path = Path.home() / ".config" / "linxtailor"
+    legacy = Path.home() / ".config" / "desktop-tailor"  # nom de la v1.0.0
+    if legacy.is_dir() and not path.exists():
+        legacy.rename(path)  # garde les sauvegardes faites avant le renommage
+    return path
 
 
 def validate_profile(p: object) -> list[str]:
@@ -53,8 +96,17 @@ def validate_profile(p: object) -> list[str]:
         if value not in allowed:
             errors.append(f"{key} invalide : {value!r}")
 
-    if p.get("schemaVersion") not in SCHEMA_VERSIONS:
-        errors.append("schemaVersion doit valoir 1 ou 2")
+    version = p.get("schemaVersion")
+    if version not in SCHEMA_VERSIONS:
+        errors.append("schemaVersion doit valoir 1, 2 ou 3")
+    for key, allowed, since in (("apps", APPS, 3), ("extensions", EXTENSIONS, 3)):
+        values = p.get(key, [])
+        if key in p and isinstance(version, int) and version < since:
+            errors.append(f"{key} n'existe qu'à partir de schemaVersion {since}")
+        elif not isinstance(values, list) or any(v not in allowed for v in values):
+            errors.append(f"{key} invalide : {values!r}")
+        elif len(set(values)) != len(values):
+            errors.append(f"{key} contient des doublons")
     comfort = p.get("comfort", [])
     if p.get("schemaVersion") == 1 and "comfort" in p:
         errors.append("comfort n'existe qu'à partir de schemaVersion 2")
@@ -78,7 +130,7 @@ def validate_profile(p: object) -> list[str]:
     check("shortcuts", SHORTCUTS, p.get("shortcuts"))
     allowed_keys = {
         "schemaVersion", "persona", "theme", "wallpaper",
-        "dock", "animations", "terminal", "shortcuts", "comfort",
+        "dock", "animations", "terminal", "shortcuts", "comfort", "apps", "extensions",
     }
     extra = set(p) - allowed_keys
     if extra:
@@ -99,6 +151,8 @@ class Action:
     risk: str = "none"  # none | package-install | repo-add
     kind: str = "shell"  # shell | download
     packages: list[str] = field(default_factory=list)
+    flatpaks: list[str] = field(default_factory=list)
+    extensions: list[str] = field(default_factory=list)
     url: str = ""
     target: str = ""
 
@@ -119,6 +173,26 @@ class Probe:
     universe_enabled: Callable[[], bool] = lambda: _ubuntu_universe_enabled()
     path_exists: Callable[[str], bool] = lambda p: Path(p).exists()
     package_installed: Callable[[str, str], bool] = lambda os_id, pkg: _package_installed(os_id, pkg)
+    flathub_enabled: Callable[[], bool] = lambda: "flathub" in _out(["flatpak", "remotes", "--user", "--columns=name"])
+    flatpak_installed: Callable[[str], bool] = lambda app: _ok(["flatpak", "info", app])
+    extension_installed: Callable[[str], bool] = lambda uuid: _ok(["gnome-extensions", "info", uuid])
+    extension_enabled: Callable[[str], bool] = lambda uuid: uuid in _out(
+        ["gsettings", "get", "org.gnome.shell", "enabled-extensions"]
+    )
+
+
+def _out(cmd: list[str]) -> str:
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def _ok(cmd: list[str]) -> bool:
+    try:
+        return subprocess.run(cmd, capture_output=True, timeout=10).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 def _package_installed(os_id: str, pkg: str) -> bool:
@@ -299,7 +373,10 @@ def build_actions(profile: dict, detection: dict, probe: Probe | None = None) ->
     dock = profile["dock"]
     pos, size = dock["position"], dock["iconSize"]
     pos_label = "en bas" if pos == "bottom" else "à gauche"
-    if de == "GNOME":
+    taskbar = de == "GNOME" and "taskbar" in profile.get("extensions", [])
+    if taskbar:
+        pass  # la barre des tâches (Dash to Panel) remplace le dock, voir plus bas
+    elif de == "GNOME":
         if os_id in DASH_TO_DOCK_PACKAGE and not probe.path_exists(DASH_TO_DOCK_DIR):
             ensure_packages([DASH_TO_DOCK_PACKAGE[os_id]], "l'extension Dash to Dock")
             add(
@@ -319,7 +396,7 @@ def build_actions(profile: dict, detection: dict, probe: Probe | None = None) ->
     elif de == "KDE":
         add(
             f"Placer le dock {pos_label}",
-            f"{kw} --file kcminputrc --group DesktopTailor --key DockPosition {pos}",
+            f"{kw} --file kcminputrc --group LinXtailor --key DockPosition {pos}",
         )
         add(
             f"Régler la taille des icônes du dock ({KDE_ICON[size]} px)",
@@ -416,6 +493,7 @@ def build_actions(profile: dict, detection: dict, probe: Probe | None = None) ->
             "gsettings set org.gnome.desktop.wm.preferences button-layout "
             "'appmenu:minimize,maximize,close'",
         )
+    if "windowButtons" in comfort and de == "GNOME" and not taskbar:
         add(
             "Réduire une fenêtre en cliquant sur son icône dans le dock",
             "gsettings set org.gnome.shell.extensions.dash-to-dock click-action 'minimize'",
@@ -461,6 +539,53 @@ def build_actions(profile: dict, detection: dict, probe: Probe | None = None) ->
             "pkexec timedatectl set-local-rtc 1",
         )
 
+    # --- Logiciels (Flathub, pour l'utilisateur, sans mot de passe) ---------
+    apps = profile.get("apps", [])
+    if apps:
+        if not probe.which("flatpak"):
+            ensure_packages(["flatpak"], "Flatpak, le gestionnaire d'applications")
+        if not probe.flathub_enabled():
+            add(
+                "Ajouter la logithèque Flathub (pour votre utilisateur, sans mot de passe)",
+                FLATHUB_ADD,
+                "repo-add",
+            )
+        for app in apps:
+            app_id, name, replaces = APPS[app]
+            if probe.flatpak_installed(app_id):
+                continue
+            label = name if name == replaces else f"{name} (remplace {replaces})"
+            add(
+                f"Installer {label} depuis Flathub",
+                f"flatpak install --user -y --noninteractive flathub {app_id}",
+                "package-install",
+                flatpaks=[app_id],
+            )
+
+    # --- Extensions GNOME ----------------------------------------------------
+    if de == "GNOME":
+        if taskbar:
+            add(
+                "Masquer le dock (remplacé par la barre des tâches)",
+                " ; ".join(f"gnome-extensions disable {u} 2>/dev/null" for u in DOCK_UUIDS) + " ; true",
+            )
+        for ext in profile.get("extensions", []):
+            uuid, name, alternatives = EXTENSIONS[ext]
+            present = [u for u in (uuid, *alternatives) if probe.extension_installed(u)]
+            if present:
+                if not any(probe.extension_enabled(u) for u in present):
+                    add(f"Activer l'extension « {name} »", f"gnome-extensions enable {present[0]}")
+                continue
+            add(
+                f"Installer l'extension « {name} » — GNOME vous demandera de confirmer",
+                "r=$(gdbus call --session --dest org.gnome.Shell.Extensions "
+                "--object-path /org/gnome/Shell/Extensions "
+                f"--method org.gnome.Shell.Extensions.InstallRemoteExtension '{uuid}'); "
+                "echo \"$r\"; [ \"$r\" = \"('successful',)\" ]",
+                "package-install",
+                extensions=[uuid],
+            )
+
     actions = []
     for i, (desc, cmd, risk, extra) in enumerate(out, start=1):
         actions.append(Action(id=i, description=desc, command=cmd, risk=risk, **extra))  # type: ignore[arg-type]
@@ -496,7 +621,7 @@ def run_command(command: str, timeout: int = 60) -> tuple[bool, str]:
 def download(url: str, target: str) -> tuple[bool, str]:
     dest = Path(target)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    req = urllib.request.Request(url, headers={"User-Agent": "desktop-tailor/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "linxtailor/1.1"})
     try:
         with urllib.request.urlopen(req, timeout=30) as resp, dest.open("wb") as f:
             shutil.copyfileobj(resp, f)
@@ -505,8 +630,8 @@ def download(url: str, target: str) -> tuple[bool, str]:
     return True, f"enregistré dans {dest}"
 
 
-def record_installed(packages: list[str]) -> None:
-    path = config_dir() / "installed-packages.txt"
+def record_installed(packages: list[str], filename: str = "installed-packages.txt") -> None:
+    path = config_dir() / filename
     path.parent.mkdir(parents=True, exist_ok=True)
     existing = set(path.read_text(encoding="utf-8").split()) if path.exists() else set()
     with path.open("a", encoding="utf-8") as f:
@@ -525,6 +650,10 @@ def execute(actions: list[Action]) -> Iterator[dict]:
             ok, output = run_command(action.command, timeout=timeout)
         if ok and action.packages:
             record_installed(action.packages)
+        if ok and action.flatpaks:
+            record_installed(action.flatpaks, "installed-flatpaks.txt")
+        if ok and action.extensions:
+            record_installed(action.extensions, "installed-extensions.txt")
         log(f"[{'ok' if ok else 'erreur'}] #{action.id} {action.command}")
         yield {"actionId": action.id, "status": "ok" if ok else "error", "output": output}
         if not ok:

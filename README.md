@@ -1,34 +1,45 @@
-# Desktop Tailor
+<h1 align="center"><img src="data/io.github.joss943.LinXtailor.svg" width="72" alt=""><br>LinXtailor</h1>
+<p align="center"><b>Le compagnon de ceux qui passent de Windows à Linux.</b> Vos logiciels, vos habitudes et un bureau à votre goût, en une page.</p>
+<p align="center">
+  <a href="https://joss943.github.io/LinXtailor/">Site</a> ·
+  <a href="#installation">Installation</a> ·
+  <a href="#fonctionnement">Fonctionnement</a> ·
+  <a href="#garde-fous">Garde-fous</a> ·
+  <a href="docs/problemes-migration.md">Guide de migration</a><br><br>
+  <a href="https://github.com/Joss943/LinXtailor/actions/workflows/ci.yml"><img src="https://github.com/Joss943/LinXtailor/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/Fedora%20·%20Ubuntu%20·%20Debian-GNOME%20·%20KDE%20·%20XFCE-4338ca" alt="Fedora, Ubuntu, Debian">
+  <img src="https://img.shields.io/badge/licence-MIT-blue" alt="MIT">
+</p>
 
-Personnalisez votre bureau Linux (Fedora, Ubuntu, Debian — GNOME, KDE Plasma, XFCE) en quelques
-questions. Chaque modification est montrée avant d’être appliquée, et tout peut être annulé.
+Choisissez un profil, ajustez sur une seule page, vérifiez la liste exacte des changements, appliquez.
+Tout est sauvegardé avant et peut être annulé en un clic.
 
 - **Agent local** (Python, FastAPI) sur `localhost:7420` uniquement : détection, dry-run, application, restauration.
 - **Interface web** (React, TypeScript, Tailwind CSS, icônes Iconoir), en français.
 
 ## Installation
 
-**Page d’installation : <https://joss943.github.io/kinginlinux/>**
+**Page d’installation : <https://joss943.github.io/LinXtailor/>**
 
 Sur Fedora 40+, Ubuntu 22.04+ ou Debian 12+, ouvrez un terminal et collez :
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Joss943/kinginlinux/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Joss943/LinXtailor/main/install.sh | bash
 ```
 
-Puis lancez **Desktop Tailor** depuis le menu des applications, ou tapez `desktop-tailor` dans un terminal.
+Puis lancez **LinXtailor** depuis le menu des applications, ou tapez `linxtailor` dans un terminal.
 
-- Installation pour votre utilisateur seulement, dans `~/.local/share/desktop-tailor`. Node.js n’est pas
-  nécessaire : l’interface est fournie déjà compilée dans la [dernière version](https://github.com/Joss943/kinginlinux/releases/latest).
+- Installation pour votre utilisateur seulement, dans `~/.local/share/linxtailor`. Node.js n’est pas
+  nécessaire : l’interface est fournie déjà compilée dans la [dernière version](https://github.com/Joss943/LinXtailor/releases/latest).
 - Le mot de passe administrateur n’est demandé que s’il manque Python (et `python3-venv` sur Ubuntu et Debian).
-- `desktop-tailor --stop` arrête l’application ; `desktop-tailor --uninstall` la désinstalle.
+- `linxtailor --stop` arrête l’application ; `linxtailor --uninstall` la désinstalle.
 
 ### Depuis les sources (développement)
 
 Prérequis : Node.js 18+, Python 3.10+.
 
 ```sh
-git clone https://github.com/Joss943/kinginlinux.git && cd kinginlinux
+git clone https://github.com/Joss943/LinXtailor.git && cd LinXtailor
 python3 -m venv .venv && .venv/bin/pip install -r agent/requirements.txt
 npm --prefix web ci
 .venv/bin/python agent/server.py & npm --prefix web run dev
@@ -41,9 +52,17 @@ Puis ouvrez <http://localhost:5173>. `bash scripts/package.sh` produit l’archi
 1. **Analyse** : distribution (`/etc/os-release`, champ `ID`), version et fin de vie, bureau
    (`$XDG_CURRENT_DESKTOP`), mémoire, disque et carte graphique.
 2. **Profil** : le migrateur (Windows), l’esthète (macOS), le bidouilleur (Linux), le minimaliste,
-   ou « Surprends-moi ».
-3. **Questions** : thème, fond d’écran, dock, animations, terminal et raccourcis, puis
-   **habitudes de Windows** :
+   ou « Surprends-moi ». Le profil pré-règle tout.
+3. **Personnaliser**, sur une seule page avec aperçu en direct (ou « Me guider pas à pas » pour
+   répondre à des questions) :
+   - **Apparence** : thème, fond d’écran, dock, animations, raccourcis clavier, terminal.
+   - **Vos logiciels Windows** : cochez Photoshop, Office, Outlook, Paint, 7-Zip, Discord, Steam…
+     et l’équivalent Linux est installé depuis Flathub, pour vous seul, sans mot de passe
+     (GIMP, ONLYOFFICE, Thunderbird, Pinta, PeaZip…).
+   - **Extensions GNOME** : barre des tâches façon Windows, menu Démarrer, icônes de la zone de
+     notification, historique du presse-papiers (Win+V), icônes sur le bureau, lien avec le téléphone,
+     anti-veille. Installées depuis extensions.gnome.org, GNOME demande confirmation pour chacune.
+   - **Habitudes Windows** :
    - boutons réduire et agrandir, et clic sur le dock qui réduit la fenêtre (GNOME) ;
    - pavé numérique allumé à l’ouverture de session ;
    - codecs vidéo et audio (MP4, MP3…) ;
@@ -67,10 +86,11 @@ Puis ouvrez <http://localhost:5173>. `bash scripts/package.sh` produit l’archi
 - Rien n’est exécuté sans un dry-run validé : `/apply` exige le jeton à usage unique rendu par `/dryrun`.
 - Les actions qui demandent les droits administrateur passent par `pkexec` (fenêtre du système) et
   annoncent leur raison dans le dry-run.
-- Seule connexion Internet : le téléchargement du fond d’écran choisi (Wikimedia Commons, domaine
-  public), après accord explicite.
-- Toutes les données restent dans `~/.config/desktop-tailor/` : instantanés (`snapshots/`),
-  paquets installés (`installed-packages.txt`), cinq derniers profils (`history.json`), journal.
+- Connexions Internet : uniquement ce que vous choisissez et que le dry-run affiche (fond d’écran
+  après accord explicite, paquets, logiciels Flathub, extensions GNOME).
+- Toutes les données restent dans `~/.config/linxtailor/` : instantanés (`snapshots/`), paquets,
+  logiciels et extensions installés (`installed-*.txt`, utilisés par « Tout annuler »), cinq derniers
+  profils (`history.json`), journal. Les données de « Desktop Tailor » (v1.0.0) y sont reprises.
 
 ## API de l’agent
 
@@ -83,6 +103,18 @@ Puis ouvrez <http://localhost:5173>. `bash scripts/package.sh` produit l’archi
 | POST    | `/rollback` | `{ "restored": true }` |
 
 Toute autre route ou méthode répond 404.
+
+## Profil (schemaVersion 3)
+
+```json
+{ "schemaVersion": 3, "persona": "migrator", "theme": "light", "wallpaper": null,
+  "dock": { "position": "bottom", "iconSize": "medium" }, "animations": "reduced",
+  "terminal": "gnome-terminal", "shortcuts": "windows",
+  "comfort": ["windowButtons", "numlock", "codecs", "officeFonts", "touchpad"],
+  "apps": ["onlyoffice", "vlc"], "extensions": ["taskbar", "startMenu", "trayIcons"] }
+```
+
+Les profils exportés en version 1 ou 2 restent importables.
 
 ## Tests
 

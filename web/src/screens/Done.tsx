@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle, Download, Home, InfoCircle, Rewind, Upload } from 'iconoir-react';
 import { api } from '../api/client';
 import { useApp } from '../App';
-import { COMFORT_OPTIONS, LABELS, PERSONAS, WALLPAPERS, parseProfile } from '../profile';
+import { APP_OPTIONS, COMFORT_OPTIONS, EXTENSION_OPTIONS, LABELS, PERSONAS, WALLPAPERS, parseProfile } from '../profile';
 import { tipsFor } from '../tips';
 
 export default function Done() {
@@ -24,6 +24,13 @@ export default function Done() {
     [
       'Habitudes Windows',
       p.comfort.length ? COMFORT_OPTIONS.filter((c) => p.comfort.includes(c.id)).map((c) => c.title).join(', ') : 'Aucune',
+    ],
+    ['Logiciels', p.apps.length ? APP_OPTIONS.filter((a) => p.apps.includes(a.id)).map((a) => a.name).join(', ') : 'Aucun'],
+    [
+      'Extensions',
+      detection?.desktop === 'GNOME' && p.extensions.length
+        ? EXTENSION_OPTIONS.filter((e) => p.extensions.includes(e.id)).map((e) => e.name).join(', ')
+        : 'Aucune',
     ],
   ];
 
@@ -48,7 +55,7 @@ export default function Done() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'desktop-tailor-profil.json';
+    a.download = 'linxtailor-profil.json';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -73,7 +80,7 @@ export default function Done() {
         <CheckCircle className="text-emerald-700" aria-hidden="true" /> Votre bureau est prêt
       </h1>
       <p className="text-slate-700">
-        Certains réglages (thème, dock) peuvent nécessiter de fermer puis rouvrir la session.
+        Certains réglages (thème, dock, extensions) peuvent nécessiter de fermer puis rouvrir la session. Vos nouveaux logiciels sont dans le menu des applications.
       </p>
       <dl className="grid grid-cols-[auto,1fr] gap-x-6 gap-y-2">
         {rows.map(([k, v]) => (

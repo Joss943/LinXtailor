@@ -29,9 +29,16 @@ export type Comfort =
   | 'touchpad'
   | 'doubleClick'
   | 'dualBootClock';
+/** Logiciels Windows remplacés par un équivalent Flathub (schemaVersion 3). */
+export type AppId =
+  | 'onlyoffice' | 'chrome' | 'vlc' | 'gimp' | 'pinta' | 'inkscape' | 'kdenlive' | 'obs'
+  | 'vscode' | 'peazip' | 'thunderbird' | 'discord' | 'spotify' | 'zoom' | 'steam' | 'heroic';
+/** Extensions GNOME (schemaVersion 3). */
+export type ExtensionId =
+  | 'trayIcons' | 'taskbar' | 'startMenu' | 'clipboard' | 'desktopIcons' | 'phone' | 'caffeine';
 
 export interface Profile {
-  schemaVersion: 2;
+  schemaVersion: 3;
   persona: Persona;
   theme: Theme;
   wallpaper: WallpaperFile | null;
@@ -40,6 +47,8 @@ export interface Profile {
   terminal: TerminalApp;
   shortcuts: Shortcuts;
   comfort: Comfort[];
+  apps: AppId[];
+  extensions: ExtensionId[];
 }
 
 export type Risk = 'none' | 'package-install' | 'repo-add';
