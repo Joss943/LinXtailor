@@ -1,0 +1,506 @@
+"""Construction des actions (dry-run) et exécution journalisée."""
+from __future__ import annotations
+
+import datetime as _dt
+import shlex
+import shutil
+import subprocess
+import urllib.request
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable, Iterator
+
+# ---------------------------------------------------------------------------
+# Profil
+# ---------------------------------------------------------------------------
+
+PERSONAS = ("migrator", "aesthete", "tinkerer", "minimalist")
+THEMES = ("light", "dark", "auto")
+DOCK_POSITIONS = ("bottom", "left")
+ICON_SIZES = ("small", "medium", "large")
+ANIMATIONS = ("full", "reduced", "off")
+TERMINALS = ("gnome-terminal", "konsole", "xfce4-terminal")
+SHORTCUTS = ("linux", "windows", "macos")
+# Irritants fréquents des personnes venant de Windows (schemaVersion 2).
+COMFORT = ("windowButtons", "numlock", "codecs", "officeFonts")
+SCHEMA_VERSIONS = (1, 2)
+
+# Fonds d'écran du domaine public (Wikimedia Commons, Special:FilePath).
+WALLPAPERS: dict[str, str] = {
+    "aurore.jpg": "https://commons.wikimedia.org/wiki/Special:FilePath/"
+    "Caspar_David_Friedrich_-_Wanderer_above_the_sea_of_fog.jpg?width=1920",
+    "vague.jpg": "https://commons.wikimedia.org/wiki/Special:FilePath/"
+    "Tsunami_by_hokusai_19th_century.jpg?width=1920",
+    "nuit.jpg": "https://commons.wikimedia.org/wiki/Special:FilePath/"
+    "Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg?width=1920",
+}
+
+
+def config_dir() -> Path:
+    return Path.home() / ".config" / "desktop-tailor"
+
+
+def validate_profile(p: object) -> list[str]:
+    """Retourne la liste des erreurs (vide si le profil est valide)."""
+    if not isinstance(p, dict):
+        return ["le profil doit être un objet JSON"]
+    errors: list[str] = []
+
+    def check(key: str, allowed: tuple[str, ...], value: object) -> None:
+        if value not in allowed:
+            errors.append(f"{key} invalide : {value!r}")
+
+    if p.get("schemaVersion") not in SCHEMA_VERSIONS:
+        errors.append("schemaVersion doit valoir 1 ou 2")
+    comfort = p.get("comfort", [])
+    if p.get("schemaVersion") == 1 and "comfort" in p:
+        errors.append("comfort n'existe qu'à partir de schemaVersion 2")
+    elif not isinstance(comfort, list) or any(c not in COMFORT for c in comfort):
+        errors.append(f"comfort invalide : {comfort!r}")
+    elif len(set(comfort)) != len(comfort):
+        errors.append("comfort contient des doublons")
+    check("persona", PERSONAS, p.get("persona"))
+    check("theme", THEMES, p.get("theme"))
+    wp = p.get("wallpaper")
+    if wp is not None and wp not in WALLPAPERS:
+        errors.append(f"wallpaper invalide : {wp!r}")
+    dock = p.get("dock")
+    if not isinstance(dock, dict):
+        errors.append("dock doit être un objet")
+    else:
+        check("dock.position", DOCK_POSITIONS, dock.get("position"))
+        check("dock.iconSize", ICON_SIZES, dock.get("iconSize"))
+    check("animations", ANIMATIONS, p.get("animations"))
+    check("terminal", TERMINALS, p.get("terminal"))
+    check("shortcuts", SHORTCUTS, p.get("shortcuts"))
+    allowed_keys = {
+        "schemaVersion", "persona", "theme", "wallpaper",
+        "dock", "animations", "terminal", "shortcuts", "comfort",
+    }
+    extra = set(p) - allowed_keys
+    if extra:
+        errors.append(f"clés inconnues : {sorted(extra)}")
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Actions
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Action:
+    id: int
+    description: str
+    command: str
+    risk: str = "none"  # none | package-install | repo-add
+    kind: str = "shell"  # shell | download
+    packages: list[str] = field(default_factory=list)
+    url: str = ""
+    target: str = ""
+
+    def public(self) -> dict:
+        return {
+            "id": self.id,
+            "description": self.description,
+            "command": self.command,
+            "risk": self.risk,
+        }
+
+
+@dataclass
+class Probe:
+    """Accès au système, remplaçable dans les tests."""
+
+    which: Callable[[str], str | None] = shutil.which
+    universe_enabled: Callable[[], bool] = lambda: _ubuntu_universe_enabled()
+    path_exists: Callable[[str], bool] = lambda p: Path(p).exists()
+    package_installed: Callable[[str, str], bool] = lambda os_id, pkg: _package_installed(os_id, pkg)
+
+
+def _package_installed(os_id: str, pkg: str) -> bool:
+    cmd = ["rpm", "-q", pkg] if os_id == "fedora" else ["dpkg", "-s", pkg]
+    try:
+        return subprocess.run(cmd, capture_output=True, timeout=10).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+# Ubuntu fournit déjà « ubuntu-dock » (même schéma gsettings que Dash to Dock).
+DASH_TO_DOCK_DIR = "/usr/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com"
+
+
+def _ubuntu_universe_enabled() -> bool:
+    paths = [Path("/etc/apt/sources.list")]
+    d = Path("/etc/apt/sources.list.d")
+    if d.is_dir():
+        paths += sorted(d.glob("*.list")) + sorted(d.glob("*.sources"))
+    for path in paths:
+        try:
+            for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "universe" in line.split():
+                    return True
+                if line.startswith("Components:") and "universe" in line.split():
+                    return True
+        except OSError:
+            continue
+    return False
+
+
+def kwrite(probe: Probe) -> str:
+    """kwriteconfig5 (spécification) ; Plasma 6 ne fournit que kwriteconfig6."""
+    if probe.which("kwriteconfig5") or not probe.which("kwriteconfig6"):
+        return "kwriteconfig5"
+    return "kwriteconfig6"
+
+
+def kread(probe: Probe) -> str:
+    if probe.which("kreadconfig5") or not probe.which("kreadconfig6"):
+        return "kreadconfig5"
+    return "kreadconfig6"
+
+
+# Paquets à installer selon le terminal choisi, et dépôt requis le cas échéant.
+TERMINAL_PACKAGES = {
+    "gnome-terminal": "gnome-terminal",
+    "konsole": "konsole",
+    "xfce4-terminal": "xfce4-terminal",
+}
+# Dépôts nécessaires : RPM Fusion (Fedora), universe (Ubuntu), contrib (Debian).
+PACKAGE_REPOS: dict[tuple[str, str], str] = {
+    ("ubuntu", "konsole"): "universe",
+    ("ubuntu", "xfce4-terminal"): "universe",
+    ("ubuntu", "gstreamer1.0-libav"): "universe",
+    ("fedora", "gstreamer1-plugin-libav"): "rpmfusion",
+}
+RPMFUSION_REPO_FILE = "/etc/yum.repos.d/rpmfusion-free.repo"
+CODEC_PACKAGES = {
+    "fedora": ["gstreamer1-plugin-libav", "gstreamer1-plugins-ugly"],
+    "ubuntu": ["gstreamer1.0-libav", "gstreamer1.0-plugins-ugly"],
+    "debian": ["gstreamer1.0-libav", "gstreamer1.0-plugins-ugly"],
+}
+# Polices métriquement compatibles avec Calibri, Cambria, Arial, Times New Roman.
+FONT_PACKAGES = {
+    "fedora": ["google-carlito-fonts", "google-crosextra-caladea-fonts", "liberation-fonts"],
+    "ubuntu": ["fonts-crosextra-carlito", "fonts-crosextra-caladea", "fonts-liberation"],
+    "debian": ["fonts-crosextra-carlito", "fonts-crosextra-caladea", "fonts-liberation"],
+}
+REPO_COMMANDS = {
+    "universe": "pkexec add-apt-repository -y universe",
+    "contrib": "pkexec apt-add-repository -y contrib",
+    "rpmfusion": "pkexec dnf install -y "
+    "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm",
+}
+DASH_TO_DOCK_PACKAGE = {
+    "fedora": "gnome-shell-extension-dash-to-dock",
+    "debian": "gnome-shell-extension-dashtodock",
+}
+SUDO_REASON_PKG = "droits administrateur requis (pkexec) pour installer un paquet système"
+SUDO_REASON_REPO = "droits administrateur requis (pkexec) pour activer un dépôt de paquets"
+
+
+def install_command(os_id: str, packages: list[str]) -> str:
+    pm = "dnf" if os_id == "fedora" else "apt"
+    return f"pkexec {pm} install -y " + " ".join(packages)
+
+
+def remove_command(os_id: str, packages: list[str]) -> str:
+    pm = "dnf" if os_id == "fedora" else "apt"
+    return f"pkexec {pm} remove -y " + " ".join(packages)
+
+
+GNOME_ICON = {"small": 32, "medium": 48, "large": 64}
+KDE_ICON = {"small": 22, "medium": 32, "large": 48}
+XFCE_ICON = {"small": 16, "medium": 24, "large": 32}
+XFCE_POSITION = {"left": "4", "bottom": "8"}
+KDE_ANIM = {"full": "1", "reduced": "0.5", "off": "0"}
+
+
+def build_actions(profile: dict, detection: dict, probe: Probe | None = None) -> list[Action]:
+    probe = probe or Probe()
+    os_id = detection["os"]
+    de = detection["desktop"]
+    out: list[tuple[str, str, str, dict]] = []  # description, command, risk, extras
+
+    def add(desc: str, cmd: str, risk: str = "none", **extra: object) -> None:
+        out.append((desc, cmd, risk, extra))
+
+    def ensure_packages(pkgs: list[str], label: str) -> None:
+        missing = [p for p in pkgs if not probe.package_installed(os_id, p)]
+        if not missing:
+            return
+        repos = {PACKAGE_REPOS[(os_id, p)] for p in missing if (os_id, p) in PACKAGE_REPOS}
+        for repo in sorted(repos):
+            if repo == "universe" and probe.universe_enabled():
+                continue
+            if repo == "rpmfusion" and probe.path_exists(RPMFUSION_REPO_FILE):
+                continue
+            add(
+                f"Activer le dépôt {repo} (requis pour {label}) — {SUDO_REASON_REPO}",
+                REPO_COMMANDS[repo],
+                "repo-add",
+            )
+        add(
+            f"Installer {label} — {SUDO_REASON_PKG}",
+            install_command(os_id, missing),
+            "package-install",
+            packages=missing,
+        )
+
+    kw = kwrite(probe)
+
+    # --- Thème -------------------------------------------------------------
+    theme = profile["theme"]
+    if theme != "auto":
+        dark = theme == "dark"
+        label = "Activer le thème sombre" if dark else "Activer le thème clair"
+        if de == "GNOME":
+            value = "prefer-dark" if dark else "default"
+            add(label, f"gsettings set org.gnome.desktop.interface color-scheme '{value}'")
+        elif de == "KDE":
+            add(label, f"plasma-apply-colorscheme {'BreezeDark' if dark else 'BreezeLight'}")
+        elif de == "XFCE":
+            name = "Adwaita-dark" if dark else "Adwaita"
+            add(label, f'xfconf-query -c xsettings -p /Net/ThemeName -s "{name}"')
+
+    # --- Fond d'écran --------------------------------------------------------
+    wp = profile.get("wallpaper")
+    if wp:
+        target = str(config_dir() / "wallpapers" / wp)
+        url = WALLPAPERS[wp]
+        add(
+            f"Télécharger le fond d'écran « {wp} » (Wikimedia Commons, domaine public)",
+            f"curl -fL -o {shlex.quote(target)} {shlex.quote(url)}",
+            kind="download",
+            url=url,
+            target=target,
+        )
+        if de == "GNOME":
+            uri = f"file://{target}"
+            add(
+                "Appliquer le fond d'écran",
+                f"gsettings set org.gnome.desktop.background picture-uri '{uri}' && "
+                f"gsettings set org.gnome.desktop.background picture-uri-dark '{uri}'",
+            )
+        elif de == "KDE":
+            add("Appliquer le fond d'écran", f"plasma-apply-wallpaperimage {shlex.quote(target)}")
+        elif de == "XFCE":
+            add(
+                "Appliquer le fond d'écran",
+                "xfconf-query -c xfce4-desktop -p "
+                "/backdrop/screen0/monitor0/workspace0/last-image -s " + shlex.quote(target),
+            )
+
+    # --- Dock --------------------------------------------------------------
+    dock = profile["dock"]
+    pos, size = dock["position"], dock["iconSize"]
+    pos_label = "en bas" if pos == "bottom" else "à gauche"
+    if de == "GNOME":
+        if os_id in DASH_TO_DOCK_PACKAGE and not probe.path_exists(DASH_TO_DOCK_DIR):
+            ensure_packages([DASH_TO_DOCK_PACKAGE[os_id]], "l'extension Dash to Dock")
+            add(
+                "Activer l'extension Dash to Dock",
+                "gnome-extensions enable dash-to-dock@micxgx.gmail.com",
+            )
+        add(
+            f"Placer le dock {pos_label}",
+            "gsettings set org.gnome.shell.extensions.dash-to-dock dock-position "
+            + ("BOTTOM" if pos == "bottom" else "LEFT"),
+        )
+        add(
+            f"Régler la taille des icônes du dock ({GNOME_ICON[size]} px)",
+            "gsettings set org.gnome.shell.extensions.dash-to-dock dash-max-icon-size "
+            f"{GNOME_ICON[size]}",
+        )
+    elif de == "KDE":
+        add(
+            f"Placer le dock {pos_label}",
+            f"{kw} --file kcminputrc --group DesktopTailor --key DockPosition {pos}",
+        )
+        add(
+            f"Régler la taille des icônes du dock ({KDE_ICON[size]} px)",
+            f"{kw} --file kdeglobals --group PanelIcons --key Size {KDE_ICON[size]}",
+        )
+    elif de == "XFCE":
+        add(
+            f"Placer le dock {pos_label}",
+            f"xfconf-query -c xfce4-panel -p /panels/panel-1/position -s {XFCE_POSITION[pos]}",
+        )
+        add(
+            f"Régler la taille des icônes du dock ({XFCE_ICON[size]} px)",
+            f"xfconf-query -c xfce4-panel -p /panels/panel-1/icon-size -s {XFCE_ICON[size]}",
+        )
+
+    # --- Animations --------------------------------------------------------
+    anim = profile["animations"]
+    anim_label = {
+        "full": "Activer les animations",
+        "reduced": "Réduire les animations",
+        "off": "Désactiver les animations",
+    }[anim]
+    if de == "GNOME":
+        enabled = "false" if anim == "off" else "true"
+        add(anim_label, f"gsettings set org.gnome.desktop.interface enable-animations {enabled}")
+    elif de == "KDE":
+        add(
+            anim_label,
+            f"{kw} --file kdeglobals --group KDE --key AnimationDurationFactor {KDE_ANIM[anim]}",
+        )
+    elif de == "XFCE":
+        enabled = "false" if anim == "off" else "true"
+        add(anim_label, f"xfconf-query -c xfwm4 -p /general/use_compositing -s {enabled}")
+
+    # --- Terminal ----------------------------------------------------------
+    term = profile["terminal"]
+    if not probe.which(term):
+        ensure_packages([TERMINAL_PACKAGES[term]], f"le terminal {term}")
+
+    # --- Raccourcis --------------------------------------------------------
+    sc = profile["shortcuts"]
+    sc_label = {
+        "linux": "Rétablir les raccourcis clavier par défaut",
+        "windows": "Appliquer les raccourcis clavier de type Windows",
+        "macos": "Appliquer les raccourcis clavier de type macOS",
+    }[sc]
+    if de == "GNOME":
+        wm = "org.gnome.desktop.wm.keybindings"
+        if sc == "linux":
+            cmd = f"gsettings reset {wm} show-desktop && gsettings reset {wm} close"
+        elif sc == "windows":
+            cmd = (
+                f"gsettings set {wm} show-desktop \"['<Super>d']\" && "
+                f"gsettings set {wm} close \"['<Alt>F4']\""
+            )
+        else:
+            cmd = (
+                f"gsettings set {wm} show-desktop \"['<Super>F3']\" && "
+                f"gsettings set {wm} close \"['<Super>q']\""
+            )
+        add(sc_label, cmd)
+    elif de == "KDE":
+        values = {
+            "linux": ("Meta+D", "Alt+F4"),
+            "windows": ("Meta+D", "Alt+F4"),
+            "macos": ("Meta+F3", "Meta+Q"),
+        }[sc]
+        add(
+            sc_label,
+            f"{kw} --file kglobalshortcutsrc --group kwin --key 'Show Desktop' "
+            f"'{values[0]},Meta+D,Afficher le bureau' && "
+            f"{kw} --file kglobalshortcutsrc --group kwin --key 'Window Close' "
+            f"'{values[1]},Alt+F4,Fermer la fenêtre'",
+        )
+    elif de == "XFCE":
+        base = "xfconf-query -c xfce4-keyboard-shortcuts -p"
+        if sc == "linux":
+            cmd = (
+                f"{base} '/xfwm4/custom/<Super>d' -r ; "
+                f"{base} '/xfwm4/custom/<Super>q' -r ; true"
+            )
+        elif sc == "windows":
+            cmd = f"{base} '/xfwm4/custom/<Super>d' -n -t string -s show_desktop_key"
+        else:
+            cmd = f"{base} '/xfwm4/custom/<Super>q' -n -t string -s close_window_key"
+        add(sc_label, cmd)
+
+    # --- Habitudes Windows (schemaVersion 2) -------------------------------
+    comfort = profile.get("comfort", [])
+    if "windowButtons" in comfort and de == "GNOME":
+        # KDE et XFCE affichent déjà ces boutons.
+        add(
+            "Afficher les boutons réduire et agrandir sur les fenêtres",
+            "gsettings set org.gnome.desktop.wm.preferences button-layout "
+            "'appmenu:minimize,maximize,close'",
+        )
+    if "numlock" in comfort:
+        label = "Allumer le pavé numérique à l'ouverture de session"
+        if de == "GNOME":
+            add(
+                label,
+                "gsettings set org.gnome.desktop.peripherals.keyboard remember-numlock-state true"
+                " && gsettings set org.gnome.desktop.peripherals.keyboard numlock-state true",
+            )
+        elif de == "KDE":
+            add(label, f"{kw} --file kcminputrc --group Keyboard --key NumLock 0")
+        elif de == "XFCE":
+            add(
+                label,
+                "xfconf-query -c keyboards -p /Default/RestoreNumlock -n -t bool -s true"
+                " && xfconf-query -c keyboards -p /Default/Numlock -n -t bool -s true",
+            )
+    if "codecs" in comfort:
+        ensure_packages(CODEC_PACKAGES[os_id], "les codecs vidéo et audio (MP4, MP3…)")
+    if "officeFonts" in comfort:
+        ensure_packages(
+            FONT_PACKAGES[os_id], "les polices compatibles avec les documents Word et Excel"
+        )
+
+    actions = []
+    for i, (desc, cmd, risk, extra) in enumerate(out, start=1):
+        actions.append(Action(id=i, description=desc, command=cmd, risk=risk, **extra))  # type: ignore[arg-type]
+    return actions
+
+
+# ---------------------------------------------------------------------------
+# Exécution
+# ---------------------------------------------------------------------------
+
+
+def log(line: str) -> None:
+    path = config_dir() / "journal.log"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    stamp = _dt.datetime.now().isoformat(timespec="seconds")
+    with path.open("a", encoding="utf-8") as f:
+        f.write(f"{stamp} {line}\n")
+
+
+def run_command(command: str, timeout: int = 60) -> tuple[bool, str]:
+    try:
+        proc = subprocess.run(
+            command, shell=True, capture_output=True, text=True, timeout=timeout
+        )
+    except subprocess.TimeoutExpired:
+        return False, f"délai dépassé ({timeout} s)"
+    except OSError as exc:
+        return False, str(exc)
+    output = (proc.stdout + proc.stderr).strip()
+    return proc.returncode == 0, output
+
+
+def download(url: str, target: str) -> tuple[bool, str]:
+    dest = Path(target)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    req = urllib.request.Request(url, headers={"User-Agent": "desktop-tailor/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp, dest.open("wb") as f:
+            shutil.copyfileobj(resp, f)
+    except Exception as exc:  # noqa: BLE001
+        return False, f"téléchargement impossible : {exc}"
+    return True, f"enregistré dans {dest}"
+
+
+def record_installed(packages: list[str]) -> None:
+    path = config_dir() / "installed-packages.txt"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing = set(path.read_text(encoding="utf-8").split()) if path.exists() else set()
+    with path.open("a", encoding="utf-8") as f:
+        for pkg in packages:
+            if pkg not in existing:
+                f.write(pkg + "\n")
+
+
+def execute(actions: list[Action]) -> Iterator[dict]:
+    """Exécute les actions dans l'ordre et s'arrête à la première erreur."""
+    for action in actions:
+        if action.kind == "download":
+            ok, output = download(action.url, action.target)
+        else:
+            timeout = 600 if action.risk != "none" else 60
+            ok, output = run_command(action.command, timeout=timeout)
+        if ok and action.packages:
+            record_installed(action.packages)
+        log(f"[{'ok' if ok else 'erreur'}] #{action.id} {action.command}")
+        yield {"actionId": action.id, "status": "ok" if ok else "error", "output": output}
+        if not ok:
+            return
